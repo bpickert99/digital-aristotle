@@ -42,7 +42,7 @@ const CURRICULUM_SCHEMA = `{
 
 const SYSTEM_PROMPT = `You are the curriculum engine for Aristotle, an adult education app. Select 2 starting units for a new user and generate the first lesson for each.
 
-CRITICAL: Keep your entire JSON response under 4000 tokens. Be concise. Each section: 2 short paragraphs only.
+CRITICAL: Keep your entire JSON response under 4000 tokens. Be concise. Each section: maximum 2 paragraphs, each paragraph maximum 4 sentences. Keep questions under 30 words each. Total response must fit in 7000 tokens.
 
 UNIT SELECTION:
 - Unit 1: humanities, history, literature, philosophy, or arts
@@ -68,7 +68,7 @@ ${CURRICULUM_SCHEMA}`;
 export async function generateCurriculum(onboarding) {
   const body = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 5500,
+    max_tokens: 8000,
     system: SYSTEM_PROMPT,
     messages: [
       { role: 'user', content: buildUserPrompt(onboarding) }
