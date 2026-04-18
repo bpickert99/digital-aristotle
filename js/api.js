@@ -1,40 +1,38 @@
-// ── Set this to your Cloudflare Worker URL ────────────
 const WORKER_URL = 'https://flat-boat-7a4b.bpickert99.workers.dev';
-// ─────────────────────────────────────────────────────
 
 const CURRICULUM_SCHEMA = `{
   "units": [
     {
-      "id": "string (short-slug, e.g. 'french-revolution-1')",
+      "id": "short-slug",
       "title": "string",
-      "subject": "string (e.g. 'History & Politics')",
+      "subject": "string",
       "track": "humanities | science | math | social | arts",
-      "description": "string (2 sentences, adult register)",
+      "description": "string (2 sentences max)",
       "totalLessons": number,
       "disciplineTags": ["string"],
       "lesson": {
-        "id": "string (slug)",
+        "id": "string",
         "title": "string",
         "estimatedMinutes": number,
-        "hook": "string (2-3 sentences, creates genuine curiosity, no spoilers)",
+        "hook": "string (2-3 sentences only)",
         "sections": [
           {
-            "title": "string (3-5 words, evocative not explanatory)",
-            "content": "string (3-5 paragraphs of adult prose, no bullet points, no headers inside)"
+            "title": "string (3-5 words)",
+            "content": "string (2-3 paragraphs of prose)"
           }
         ],
-        "pullQuote": "string (the essay's single sharpest sentence, used as a block pull quote)",
-        "checkpointPrompt": "string (a question requiring the student to generate a prediction or reflection before continuing)",
+        "pullQuote": "string (one sentence from the essay)",
+        "checkpointPrompt": "string (one question)",
         "questions": [
           {
             "id": "string",
             "type": "comprehension | analysis | connection | prose",
             "question": "string",
             "format": "multiple-choice | short-answer",
-            "options": ["string"] or null,
-            "correctIndex": number or null,
-            "answer": "string (for short-answer, the ideal answer framework)",
-            "explanation": "string (why this is correct, what a wrong answer typically misses)"
+            "options": ["string", "string", "string", "string"],
+            "correctIndex": number,
+            "answer": "string",
+            "explanation": "string (2 sentences max)"
           }
         ]
       }
@@ -42,52 +40,35 @@ const CURRICULUM_SCHEMA = `{
   ]
 }`;
 
-const SYSTEM_PROMPT = `You are the curriculum engine for Aristotle, an adult education app. Your task is to select 2 starting units for a new user and generate the first lesson for each, based on their onboarding profile.
+const SYSTEM_PROMPT = `You are the curriculum engine for Aristotle, an adult education app. Select 2 starting units for a new user and generate the first lesson for each.
 
-UNIT SELECTION RULES:
-- Unit 1 must be from humanities, arts, literature, history, philosophy, or cultural studies.
-- Unit 2 must be from natural sciences, mathematics, social sciences (psychology, economics, anthropology), or formal sciences.
-- Select genuinely interesting entry points — not survey courses or overviews. Start in the middle of something real.
-- Match difficulty to the user's stated prior knowledge.
-- Honor stated interests while allowing for productive surprise. If someone says they love history, a unit on the history of mathematics is a better second unit than an introductory physics overview.
-- Avoid any topics the user has asked to avoid.
+CRITICAL: Keep your entire JSON response under 4000 tokens. Be concise. Each section: 2 short paragraphs only.
 
-LESSON QUALITY STANDARDS:
-- Write for intelligent adults. The register is a serious magazine essay, not a textbook.
-- No exclamation points anywhere in lesson content.
-- Never write "let us explore", "in this lesson", "today we will", or any similar framing.
-- Hooks create genuine curiosity through a specific, concrete detail or an unresolved tension — not a summary of what follows.
-- Essay sections should sound like a knowledgeable person talking, not a Wikipedia article.
-- Questions must test analysis, connection, or close reading — not recall of facts just stated.
-- At least one question must ask the student to draw a connection to their own experience, prior knowledge, or current events.
-- For literature units, one question must engage with prose style or composition, not just content.
-- Short-answer questions should be open enough that a thoughtful partial answer is valid.
-- Multiple-choice questions should have 4 options with one clearly best answer and distractors that represent real misconceptions.
+UNIT SELECTION:
+- Unit 1: humanities, history, literature, philosophy, or arts
+- Unit 2: natural sciences, mathematics, social sciences, or formal sciences
+- Pick genuinely interesting entry points, not surveys. Match user interests.
 
-PROSE STYLE:
-- Active voice, subordinate clauses, precision.
-- Section prose should be 3-5 paragraphs per section.
-- Pull quote should be the single most arresting sentence in the entire essay — the one that earns the lesson's place in the curriculum.
-- Total lesson reading time (hook + all sections) should match estimatedMinutes minus 8 minutes for questions.
+LESSON STANDARDS:
+- Adult register, serious and direct. No exclamation points.
+- No "let us explore" or "in this lesson" or "today we will"
+- Exactly 3 sections, exactly 4 questions per lesson
+- Multiple-choice: exactly 4 options, correctIndex is 0-3
+- Questions test analysis and connection, not recall
 
-Return ONLY valid JSON matching the schema exactly. No markdown, no commentary, no code fences.`;
+Return ONLY valid JSON. No markdown fences, no commentary, no extra text before or after the JSON.`;
 
 function buildUserPrompt(onboarding) {
-  return `USER ONBOARDING PROFILE:
-Interests: ${onboarding.interests?.join(', ') || 'Not specified'}
-Prior knowledge areas: ${onboarding.foundation?.join(', ') || 'None specified'}
-Mathematics comfort: ${onboarding.mathComfort || 'Not specified'}
-Things that have stayed with them: ${onboarding.personal?.filter(Boolean).join('; ') || 'Not provided'}
-Topics to avoid: ${onboarding.avoid || 'None'}
+  return `USER INTERESTS (ranked): ${onboarding.interests?.join(', ') || 'general'}
 
-Return exactly 2 units in JSON format matching this schema:
+Return exactly 2 units matching this schema:
 ${CURRICULUM_SCHEMA}`;
 }
 
 export async function generateCurriculum(onboarding) {
   const body = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 8000,
+    max_tokens: 4500,
     system: SYSTEM_PROMPT,
     messages: [
       { role: 'user', content: buildUserPrompt(onboarding) }
@@ -106,12 +87,24 @@ export async function generateCurriculum(onboarding) {
     const detail = data?.error?.message || data?.message || JSON.stringify(data);
     throw new Error(`Anthropic error (${res.status}): ${detail}`);
   }
-  const text    = data.content?.[0]?.text || '';
-  const cleaned = text.replace(/```json|```/g, '').trim();
+
+  const text = data.content?.[0]?.text || '';
+  console.log('Claude response preview:', text.substring(0, 300));
+
+  const cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
 
   try {
-    return JSON.parse(cleaned);
-  } catch {
-    throw new Error('Failed to parse curriculum JSON from Claude response');
+    const parsed = JSON.parse(cleaned);
+    if (!parsed.units || !Array.isArray(parsed.units)) {
+      throw new Error('Response missing units array. Got: ' + text.substring(0, 200));
+    }
+    return parsed;
+  } catch (e) {
+    console.error('Full Claude response:', text);
+    throw new Error('Parse failed: ' + e.message);
   }
 }
