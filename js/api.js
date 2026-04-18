@@ -1,78 +1,50 @@
 const WORKER_URL = 'https://flat-boat-7a4b.bpickert99.workers.dev';
 
-const CURRICULUM_SCHEMA = `{
-  "units": [
-    {
-      "id": "short-slug",
-      "title": "string",
-      "subject": "string",
-      "track": "humanities | science | math | social | arts",
-      "description": "string (2 sentences max)",
-      "totalLessons": number,
-      "disciplineTags": ["string"],
-      "lesson": {
-        "id": "string",
-        "title": "string",
-        "estimatedMinutes": number,
-        "hook": "string (2-3 sentences only)",
-        "sections": [
-          {
-            "title": "string (3-5 words)",
-            "content": "string (2-3 paragraphs of prose)"
-          }
-        ],
-        "pullQuote": "string (one sentence from the essay)",
-        "checkpointPrompt": "string (one question)",
-        "questions": [
-          {
-            "id": "string",
-            "type": "comprehension | analysis | connection | prose",
-            "question": "string",
-            "format": "multiple-choice | short-answer",
-            "options": ["string", "string", "string", "string"],
-            "correctIndex": number,
-            "answer": "string",
-            "explanation": "string (2 sentences max)"
-          }
-        ]
-      }
-    }
-  ]
+const UNIT_SCHEMA = `{
+  "id": "short-slug",
+  "title": "string",
+  "subject": "string",
+  "track": "humanities | science | math | social | arts",
+  "description": "string (2 sentences)",
+  "totalLessons": 8,
+  "disciplineTags": ["string"],
+  "lesson": {
+    "id": "string",
+    "title": "string",
+    "estimatedMinutes": 25,
+    "hook": "string (2 sentences)",
+    "sections": [
+      { "title": "string (4 words)", "content": "string (2 paragraphs)" },
+      { "title": "string (4 words)", "content": "string (2 paragraphs)" },
+      { "title": "string (4 words)", "content": "string (2 paragraphs)" }
+    ],
+    "pullQuote": "string (one sentence)",
+    "checkpointPrompt": "string (one question)",
+    "questions": [
+      { "id": "q1", "type": "comprehension", "question": "string", "format": "multiple-choice", "options": ["A","B","C","D"], "correctIndex": 0, "answer": "string", "explanation": "string" },
+      { "id": "q2", "type": "analysis", "question": "string", "format": "short-answer", "options": null, "correctIndex": null, "answer": "string", "explanation": "string" },
+      { "id": "q3", "type": "connection", "question": "string", "format": "short-answer", "options": null, "correctIndex": null, "answer": "string", "explanation": "string" },
+      { "id": "q4", "type": "prose", "question": "string", "format": "short-answer", "options": null, "correctIndex": null, "answer": "string", "explanation": "string" }
+    ]
+  }
 }`;
 
-const SYSTEM_PROMPT = `You are the curriculum engine for Aristotle, an adult education app. Select 2 starting units for a new user and generate the first lesson for each.
+const SYSTEM_PROMPT = `You are a curriculum engine for Aristotle, an adult education app. Generate exactly ONE unit with its first lesson.
 
-CRITICAL: Keep your entire JSON response under 4000 tokens. Be concise. Each section: maximum 2 paragraphs, each paragraph maximum 4 sentences. Keep questions under 30 words each. Total response must fit in 7000 tokens.
-
-UNIT SELECTION:
-- Unit 1: humanities, history, literature, philosophy, or arts
-- Unit 2: natural sciences, mathematics, social sciences, or formal sciences
-- Pick genuinely interesting entry points, not surveys. Match user interests.
-
-LESSON STANDARDS:
+RULES:
 - Adult register, serious and direct. No exclamation points.
-- No "let us explore" or "in this lesson" or "today we will"
-- Exactly 3 sections, exactly 4 questions per lesson
-- Multiple-choice: exactly 4 options, correctIndex is 0-3
-- Questions test analysis and connection, not recall
+- No "let us explore" or "in this lesson"
+- Section content: exactly 2 paragraphs, 3-4 sentences each
+- Hook: exactly 2 sentences
+- Questions: short, under 25 words each
+- Return ONLY valid JSON matching the schema. No markdown, no extra text.`;
 
-Return ONLY valid JSON. No markdown fences, no commentary, no extra text before or after the JSON.`;
-
-function buildUserPrompt(onboarding) {
-  return `USER INTERESTS (ranked): ${onboarding.interests?.join(', ') || 'general'}
-
-Return exactly 2 units matching this schema:
-${CURRICULUM_SCHEMA}`;
-}
-
-export async function generateCurriculum(onboarding) {
+async function callWorker(prompt) {
   const body = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 8000,
+    max_tokens: 3500,
     system: SYSTEM_PROMPT,
-    messages: [
-      { role: 'user', content: buildUserPrompt(onboarding) }
-    ]
+    messages: [{ role: 'user', content: prompt }]
   };
 
   const res = await fetch(WORKER_URL, {
@@ -84,12 +56,12 @@ export async function generateCurriculum(onboarding) {
   const data = await res.json();
 
   if (!res.ok) {
-    const detail = data?.error?.message || data?.message || JSON.stringify(data);
+    const detail = data?.error?.message || JSON.stringify(data);
     throw new Error(`Anthropic error (${res.status}): ${detail}`);
   }
 
   const text = data.content?.[0]?.text || '';
-  console.log('Claude response preview:', text.substring(0, 300));
+  console.log('Claude response (' + text.length + ' chars):', text.substring(0, 200));
 
   const cleaned = text
     .replace(/^```json\s*/i, '')
@@ -98,13 +70,79 @@ export async function generateCurriculum(onboarding) {
     .trim();
 
   try {
-    const parsed = JSON.parse(cleaned);
-    if (!parsed.units || !Array.isArray(parsed.units)) {
-      throw new Error('Response missing units array. Got: ' + text.substring(0, 200));
-    }
-    return parsed;
+    return JSON.parse(cleaned);
   } catch (e) {
-    console.error('Full Claude response:', text);
+    console.error('Parse failed. Full response:', text);
     throw new Error('Parse failed: ' + e.message);
   }
+}
+
+export async function generateCurriculum(onboarding) {
+  const interests = onboarding.interests?.join(', ') || 'general';
+
+  const prompt1 = `User interests (ranked): ${interests}
+
+Generate ONE humanities/history/literature/philosophy/arts unit — pick the most interesting entry point based on their interests.
+
+Return exactly this JSON structure:
+${UNIT_SCHEMA}`;
+
+  const prompt2 = `User interests (ranked): ${interests}
+
+Generate ONE science/mathematics/social-science unit — pick something that complements the user's interests from a different angle.
+
+Return exactly this JSON structure:
+${UNIT_SCHEMA}`;
+
+  console.log('Generating unit 1...');
+  const unit1 = await callWorker(prompt1);
+
+  console.log('Generating unit 2...');
+  const unit2 = await callWorker(prompt2);
+
+  return { units: [unit1, unit2] };
+}
+
+// ── Generate chapters for a unit ─────────────────────
+export async function generateChapters(unit) {
+  const prompt = `Given this educational unit, break it into 4 themed chapters.
+Unit title: ${unit.title}
+Unit description: ${unit.description}
+Track: ${unit.track}
+
+Return JSON array only:
+[
+  { "title": "Chapter title (evocative, 3-5 words)", "theme": "One sentence describing this chapter's focus", "lessonCount": 2 },
+  { "title": "...", "theme": "...", "lessonCount": 2 },
+  { "title": "...", "theme": "...", "lessonCount": 2 },
+  { "title": "...", "theme": "...", "lessonCount": 2 }
+]`;
+
+  return callWorker(prompt);
+}
+
+// ── Generate post-reading reflection questions ────────
+export async function generateReflectionQuestions(chapter, book) {
+  const preview = chapter.content.substring(0, 1500);
+
+  const prompt = `Generate 3 reflection questions for this book chapter.
+Book: ${book.title} by ${book.author}
+Chapter: ${chapter.title}
+Chapter opening: ${preview}...
+
+Return JSON array only:
+[
+  { "id": "r1", "question": "string", "type": "comprehension" },
+  { "id": "r2", "question": "string", "type": "analysis" },
+  { "id": "r3", "question": "string", "type": "connection" }
+]
+
+Rules:
+- Questions engage the actual content of this chapter
+- Analysis question asks about prose, structure, or character
+- Connection question links to broader ideas or the reader's life
+- No "In this chapter..." openings
+- Under 30 words each`;
+
+  return callWorker(prompt);
 }

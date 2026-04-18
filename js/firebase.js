@@ -19,12 +19,12 @@ import {
 
 // ── Replace with your Firebase project config ─────────
 const firebaseConfig = {
-  apiKey:            "AIzaSyAJTAK57000puecZ1V2sbnUMiVw4fqwnvA",
-  authDomain:        "digital-aristotle-f2764.firebaseapp.com",
-  projectId:         "digital-aristotle-f2764",
-  storageBucket:     "digital-aristotle-f2764.firebasestorage.app",
-  messagingSenderId: "836692455298",
-  appId:             "1:836692455298:web:15166be19fe76a5bc6a99b"
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
 };
 // ─────────────────────────────────────────────────────
 
@@ -164,4 +164,83 @@ export async function updateStreak(uid) {
     await updateUser(uid, { streak: 1, streakUpdated: serverTimestamp() });
     return 1;
   }
+}
+
+// ── Book / reading functions ──────────────────────────
+export async function saveBook(uid, bookData) {
+  await setDoc(doc(db, 'users', uid, 'curriculum', 'book'), {
+    ...bookData,
+    savedAt: serverTimestamp()
+  });
+}
+
+export async function getBook(uid) {
+  const snap = await getDoc(doc(db, 'users', uid, 'curriculum', 'book'));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function updateBookProgress(uid, currentChapter, lastReadDate) {
+  await updateDoc(doc(db, 'users', uid, 'curriculum', 'book'), {
+    currentChapter,
+    lastReadDate
+  });
+}
+
+export async function saveVocabLevel(uid, vocabResult) {
+  await updateDoc(doc(db, 'users', uid), { vocabLevel: vocabResult });
+}
+
+export async function getCompletedUnits(uid) {
+  const snap = await getDoc(doc(db, 'users', uid, 'curriculum', 'completed'));
+  return snap.exists() ? (snap.data().units || []) : [];
+}
+
+export async function markUnitComplete(uid, unit) {
+  const existing = await getCompletedUnits(uid);
+  await setDoc(doc(db, 'users', uid, 'curriculum', 'completed'), {
+    units: [...existing, { ...unit, completedAt: Date.now() }]
+  });
+}
+
+export async function checkAndUpdateStreak(uid) {
+  const userData = await getUser(uid);
+  if (!userData) return 0;
+
+  const now       = new Date();
+  const todayStr  = now.toDateString();
+
+  // Check both conditions
+  const bookDone   = userData.lastBookDate  === todayStr;
+  const lessonDone = userData.lastLessonDate === todayStr;
+
+  if (!bookDone || !lessonDone) return userData.streak || 0;
+
+  // Both done — update streak
+  const lastDate  = userData.streakUpdated?.toDate?.() || null;
+  let newStreak   = 1;
+
+  if (lastDate) {
+    const diffDays = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0)      return userData.streak || 0; // already counted today
+    if (diffDays === 1)      newStreak = (userData.streak || 0) + 1;
+    else if (diffDays === 2 && userData.freezeTokens > 0) {
+      newStreak = (userData.streak || 0) + 1;
+      await updateUser(uid, { freezeTokens: userData.freezeTokens - 1 });
+    }
+  }
+
+  await updateUser(uid, { streak: newStreak, streakUpdated: serverTimestamp() });
+  return newStreak;
+}
+
+export async function recordBookRead(uid) {
+  const todayStr = new Date().toDateString();
+  await updateUser(uid, { lastBookDate: todayStr });
+  return checkAndUpdateStreak(uid);
+}
+
+export async function recordLessonDone(uid) {
+  const todayStr = new Date().toDateString();
+  await updateUser(uid, { lastLessonDate: todayStr });
+  return checkAndUpdateStreak(uid);
 }

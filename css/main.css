@@ -316,28 +316,50 @@ html, body {
 }
 
 /* ── Mobile-first overrides ──────────────────────────── */
-@media (max-width: 480px) {
-  html, body { font-size: 16px; }
+@media (max-width: 640px) {
+  /* Keep base font at 18px — reducing it was making things smaller */
+  html, body { font-size: 18px; }
 
-  .auth-wordmark  { font-size: 2.5rem; }
-  .auth-tagline   { font-size: 1.1rem; }
+  /* Onboarding */
+  .ob-heading          { font-size: 1.75rem; line-height: 1.2; }
+  .ob-sub              { font-size: 1rem; }
+  .ob-label            { font-size: 0.75rem; }
 
-  .ob-heading     { font-size: 1.65rem; }
-  .ob-sub         { font-size: 0.95rem; }
+  /* Pair cards — increase for comfortable phone reading */
+  .pair-course-title   { font-size: 1.15rem; line-height: 1.35; }
+  .pair-course-desc    { font-size: 1rem; line-height: 1.55; }
+  .pair-or             { font-size: 0.75rem; padding: 12px 0; }
+  .pair-card           { padding: 22px 20px; }
 
-  .pair-course-title { font-size: 1rem; }
-  .pair-course-desc  { font-size: 0.88rem; }
+  /* Tiles */
+  .tile-name           { font-size: 0.88rem; }
+  .tile-desc           { font-size: 0.75rem; }
 
-  .unit-title        { font-size: 1.15rem; }
-  .lesson-title      { font-size: 1.5rem; }
-  .lesson-hook       { font-size: 1.1rem; }
-  .lesson-prose      { font-size: 1.05rem; }
-  .pull-quote-text   { font-size: 1.05rem; }
-  .question-text     { font-size: 1.1rem; }
+  /* Home */
+  .home-section-title  { font-size: 1.25rem; }
+  .unit-title          { font-size: 1.2rem; }
+  .unit-lesson-title   { font-size: 1rem; }
+  .unit-desc           { font-size: 0.82rem; }
 
-  .home-wordmark     { font-size: 1rem; }
-  .completion-title  { font-size: 1.5rem; }
-  .gen-title         { font-size: 1.5rem; }
+  /* Lesson reading */
+  .lesson-title        { font-size: 1.6rem; }
+  .lesson-hook         { font-size: 1.15rem; }
+  .lesson-prose        { font-size: 1.1rem; line-height: 1.8; }
+  .pull-quote-text     { font-size: 1.1rem; }
+  .section-title       { font-size: 0.72rem; }
+
+  /* Questions */
+  .question-text       { font-size: 1.15rem; }
+  .q-option            { font-size: 1.05rem; padding: 16px; }
+
+  /* Completion */
+  .completion-title    { font-size: 1.6rem; }
+  .gen-title           { font-size: 1.55rem; }
+
+  /* Auth */
+  .auth-wordmark       { font-size: 2.8rem; }
+  .auth-tagline        { font-size: 1.15rem; }
+  .auth-descriptor     { font-size: 0.82rem; }
 }
 
 /* Subject tiles */
@@ -1338,4 +1360,107 @@ html, body {
   height: 1px;
   background: var(--border);
   margin: 0 24px;
+}
+
+/* ── Vocab test ──────────────────────────────────────── */
+.vocab-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.vocab-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.vocab-item:active  { transform: scale(0.97); }
+.vocab-item.checked {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.vocab-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-2);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.vocab-item.checked .vocab-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.vocab-checkmark {
+  width: 10px;
+  height: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5l2.5 2.5 4.5-4.5' stroke='%231a1610' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.vocab-item.checked .vocab-checkmark { opacity: 1; }
+
+.vocab-word {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.vocab-item.checked .vocab-word { color: var(--accent-lt); }
+
+/* ── Daily progress checks ───────────────────────────── */
+.daily-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  transition: border-color 0.2s;
+}
+.daily-check.done {
+  border-color: var(--success);
+  background: rgba(122, 171, 138, 0.08);
+}
+.daily-check-icon {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.daily-check.done .daily-check-icon { color: var(--success); }
+.daily-check-label {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-3);
+}
+.daily-check.done .daily-check-label { color: var(--success); }
+
+/* ── Card done state ─────────────────────────────────── */
+.card-done {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ── Streak done state ───────────────────────────────── */
+.streak-done {
+  border-color: var(--accent) !important;
+  background: var(--accent-bg) !important;
 }
