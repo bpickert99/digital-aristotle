@@ -68,7 +68,7 @@ ${CURRICULUM_SCHEMA}`;
 export async function generateCurriculum(onboarding) {
   const body = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 4500,
+    max_tokens: 5500,
     system: SYSTEM_PROMPT,
     messages: [
       { role: 'user', content: buildUserPrompt(onboarding) }
