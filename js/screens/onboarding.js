@@ -1,19 +1,10 @@
+import { getOnboardingPairs } from '../coursePairs.js';
+
 // Onboarding flow: 5 steps → returns completed profile object
 
-const SUBJECTS = [
-  { id: 'history',    icon: '🏛', name: 'History & Politics',      desc: 'The forces that shaped the world' },
-  { id: 'science',    icon: '⚗️', name: 'Natural Sciences',         desc: 'Physics, chemistry, biology, earth' },
-  { id: 'math',       icon: '∑',  name: 'Mathematics & Logic',      desc: 'Reasoning from first principles' },
-  { id: 'literature', icon: '📖', name: 'Literature & Writing',     desc: 'Novels, poetry, and the craft of prose' },
-  { id: 'philosophy', icon: '◎',  name: 'Philosophy & Ethics',      desc: 'How to think about what matters' },
-  { id: 'music',      icon: '♩',  name: 'Music & Sound',            desc: 'Theory, history, and trained listening' },
-  { id: 'anthropology', icon: '🌍', name: 'Anthropology & Culture', desc: 'How humans organise and make meaning' },
-  { id: 'economics',  icon: '⤢',  name: 'Economics & Society',      desc: 'Markets, institutions, and behaviour' },
-  { id: 'geography',  icon: '◈',  name: 'Geography & the World',    desc: 'Place, climate, and human settlement' },
-  { id: 'art',        icon: '◻',  name: 'Visual Art & Architecture', desc: 'How images and space carry meaning' },
-  { id: 'psychology', icon: '◑',  name: 'Psychology & the Mind',    desc: 'Cognition, behaviour, and motivation' },
-  { id: 'cs',         icon: '⋈',  name: 'Computing & Technology',   desc: 'How software and systems work' },
-];
+// Pairwise course comparisons. Each pair compares two domains.
+// Choices are tallied to infer relative interest across subjects.
+const COURSE_PAIRS = getOnboardingPairs();
 
 const MATH_OPTIONS = [
   { value: 'avoidant',    label: 'Not for me right now',        sub: 'Focus on other subjects' },
@@ -77,26 +68,47 @@ export function renderOnboarding(state, onComplete) {
       </div>`;
   }
 
+  // Pairwise comparison state
+  let pairIndex   = 0;
+  const domainWins = {};
+
   function stepInterests(p) {
-    const tiles = SUBJECTS.map(s => `
-      <div class="tile ${p.interests.includes(s.id) ? 'selected' : ''}"
-           data-id="${s.id}" data-step="interests">
-        <span class="tile-icon">${s.icon}</span>
-        <div class="tile-name">${s.name}</div>
-        <div class="tile-desc">${s.desc}</div>
-      </div>`).join('');
+    pairIndex = 0;
+    return buildPairScreen(0);
+  }
+
+  function buildPairScreen(idx) {
+    const pair    = COURSE_PAIRS[idx];
+    const total   = COURSE_PAIRS.length;
+    const dotHtml = Array.from({length: total}, (_, i) => `
+      <div class="pair-dot ${i < idx ? 'done' : i === idx ? 'active' : ''}"></div>
+    `).join('');
 
     return `
-      <div class="ob-content">
-        <div class="ob-label">Step 1 of 4</div>
-        <h2 class="ob-heading">Which territories feel worth exploring?</h2>
-        <p class="ob-sub">Select any that draw you. There are no wrong answers.</p>
-        <div class="tile-grid">${tiles}</div>
-      </div>
-      <div class="ob-footer">
-        <button class="btn btn-primary" id="ob-next"
-          ${p.interests.length === 0 ? 'disabled' : ''}>Continue</button>
-        <button class="ob-skip" id="ob-skip">Skip this step</button>
+      <div class="ob-content" style="display:flex;flex-direction:column;height:100%;">
+        <div class="ob-label">Step 1 of 4 &nbsp;·&nbsp; ${idx + 1} of ${total}</div>
+        <h2 class="ob-heading" style="margin-bottom:6px;">Which would you rather take?</h2>
+        <p class="ob-sub" style="margin-bottom:20px;">Neither is a commitment. This just helps rank your interests.</p>
+
+        <div class="pair-dots" style="display:flex;gap:5px;margin-bottom:24px;">
+          ${dotHtml}
+        </div>
+
+        <div class="pair-card" data-choice="0" id="pair-a">
+          <div class="pair-course-title">${pair[0].title}</div>
+          <div class="pair-course-desc">${pair[0].desc}</div>
+        </div>
+
+        <div class="pair-or">or</div>
+
+        <div class="pair-card" data-choice="1" id="pair-b">
+          <div class="pair-course-title">${pair[1].title}</div>
+          <div class="pair-course-desc">${pair[1].desc}</div>
+        </div>
+
+        <button class="ob-skip" id="ob-skip" style="margin-top:auto;padding-top:16px;">
+          Skip this one
+        </button>
       </div>`;
   }
 
@@ -179,24 +191,20 @@ export function renderOnboarding(state, onComplete) {
   }
 
   function attachStepListeners() {
-    // Tile toggles
-    screen.querySelectorAll('.tile[data-step]').forEach(tile => {
-      tile.addEventListener('click', () => {
-        const field = tile.dataset.step; // 'interests' or 'foundation'
-        const id    = tile.dataset.id;
-        const arr   = profile[field];
-        const idx   = arr.indexOf(id);
+    // Pair card selection
+    screen.querySelectorAll('.pair-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const choiceIdx = parseInt(card.dataset.choice);
+        const pair      = COURSE_PAIRS[pairIndex];
+        const chosen    = pair[choiceIdx];
+        const other     = pair[1 - choiceIdx];
 
-        if (idx === -1) arr.push(id);
-        else arr.splice(idx, 1);
+        // Tally wins
+        domainWins[chosen.domain] = (domainWins[chosen.domain] || 0) + 1;
 
-        tile.classList.toggle('selected', arr.includes(id));
-
-        // Update next button state for interests step
-        if (field === 'interests') {
-          const btn = screen.querySelector('#ob-next');
-          if (btn) btn.disabled = arr.length === 0;
-        }
+        // Animate selection
+        card.classList.add('selected');
+        setTimeout(() => advancePair(), 300);
       });
     });
 
@@ -233,6 +241,40 @@ export function renderOnboarding(state, onComplete) {
     // Skip button
     const skipBtn = screen.querySelector('#ob-skip');
     if (skipBtn) skipBtn.addEventListener('click', advance);
+  }
+
+  function advancePair() {
+    pairIndex++;
+    if (pairIndex < COURSE_PAIRS.length) {
+      // Next pair — re-render content only
+      const content = screen.querySelector('.ob-content');
+      if (content) {
+        content.style.opacity = '0';
+        content.style.transform = 'translateX(10px)';
+        setTimeout(() => {
+          // Rebuild just the interests content in place
+          const prog = screen.querySelector('.ob-progress').outerHTML;
+          screen.innerHTML = prog + buildStep(step, profile);
+          attachStepListeners();
+          const newContent = screen.querySelector('.ob-content');
+          if (newContent) {
+            newContent.style.transition = 'opacity 0.25s, transform 0.25s';
+            newContent.style.opacity = '0';
+            newContent.style.transform = 'translateX(10px)';
+            setTimeout(() => {
+              newContent.style.opacity = '1';
+              newContent.style.transform = 'none';
+            }, 20);
+          }
+        }, 200);
+      }
+    } else {
+      // All pairs done — store ranked interests and advance step
+      profile.interests = Object.entries(domainWins)
+        .sort((a, b) => b[1] - a[1])
+        .map(([domain]) => domain);
+      advance();
+    }
   }
 
   function advance() {

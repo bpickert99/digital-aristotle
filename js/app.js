@@ -3,13 +3,19 @@ import {
   getUser, createUser, saveOnboarding,
   saveUnits, getUnits,
   saveCompletion, saveFeedback,
-  awardXp, updateStreak
+  awardXp, updateStreak, saveInterestFingerprint
 } from './firebase.js';
-import { generateCurriculum } from './api.js';
-import { renderOnboarding }   from './screens/onboarding.js';
-import { renderGenerating }   from './screens/generating.js';
-import { renderHome }         from './screens/home.js';
-import { renderLesson }       from './screens/lesson.js';
+import { generateCurriculum }  from './api.js';
+import { renderOnboarding }    from './screens/onboarding.js';
+import { renderGenerating }    from './screens/generating.js';
+import { renderHome }          from './screens/home.js';
+import { renderLesson }        from './screens/lesson.js';
+import {
+  renderInterestPulse,
+  shouldShowPulse,
+  mergeInterestSignal
+} from './screens/interestPulse.js';
+import { getPulsePairs } from './coursePairs.js';
 
 // ── State ────────────────────────────────────────────
 let userData = null;
@@ -215,14 +221,41 @@ function showLesson(unit, homeScreen) {
       await awardXp(uid, result.xpEarned);
       await updateStreak(uid);
 
-      // Refresh and return to home
+      // Refresh user data
       userData = await getUser(uid);
-      lessonScreen.classList.remove('active');
-      lessonScreen.classList.add('exit');
-      setTimeout(() => {
-        lessonScreen.remove();
-        loadAndShowHome();
-      }, 350);
+
+      // Check whether to show interest pulse before returning home
+      if (shouldShowPulse(userData)) {
+        const seenIndices = userData.fingerprint?.seenPulseIndices || [];
+        const pairData    = getPulsePairs(seenIndices);
+
+        renderInterestPulse(pairData, async ({ domainWins, seenIndices: newSeen }) => {
+          // Merge new signals into fingerprint with decay
+          const updated = mergeInterestSignal(
+            userData.fingerprint || {},
+            domainWins
+          );
+          updated.seenPulseIndices = [
+            ...seenIndices,
+            ...newSeen
+          ].slice(-30); // keep last 30 so pairs eventually recycle
+
+          await saveInterestFingerprint(uid, updated);
+          userData = await getUser(uid);
+          returnHome();
+        });
+      } else {
+        returnHome();
+      }
+
+      function returnHome() {
+        lessonScreen.classList.remove('active');
+        lessonScreen.classList.add('exit');
+        setTimeout(() => {
+          lessonScreen.remove();
+          loadAndShowHome();
+        }, 350);
+      }
     }
   });
 

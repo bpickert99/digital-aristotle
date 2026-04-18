@@ -19,13 +19,12 @@ import {
 
 // ── Replace with your Firebase project config ─────────
 const firebaseConfig = {
-  apiKey: "AIzaSyAJTAK57000puecZ1V2sbnUMiVw4fqwnvA",
-  authDomain: "digital-aristotle-f2764.firebaseapp.com",
-  projectId: "digital-aristotle-f2764",
-  storageBucket: "digital-aristotle-f2764.firebasestorage.app",
-  messagingSenderId: "836692455298",
-  appId: "1:836692455298:web:15166be19fe76a5bc6a99b",
-  measurementId: "G-NVMC70X016"
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
 };
 // ─────────────────────────────────────────────────────
 
@@ -100,6 +99,13 @@ export async function saveCompletion(uid, lessonId, data) {
     lessonId,
     ...data,
     completedAt: serverTimestamp()
+  });
+}
+
+export async function saveInterestFingerprint(uid, fingerprint) {
+  await updateDoc(doc(db, 'users', uid), {
+    fingerprint,
+    lastPulseAt: serverTimestamp()
   });
 }
 
