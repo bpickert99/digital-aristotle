@@ -1,5 +1,5 @@
 // ── Set this to your Cloudflare Worker URL ────────────
-const WORKER_URL = 'https://your-worker.your-name.workers.dev';
+const WORKER_URL = 'https://flat-boat-7a4b.bpickert99.workers.dev';
 // ─────────────────────────────────────────────────────
 
 const CURRICULUM_SCHEMA = `{
