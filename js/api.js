@@ -1,5 +1,5 @@
 // ── Set this to your Cloudflare Worker URL ────────────
-const WORKER_URL = 'https://flat-boat-7a4b.bpickert99.workers.dev';
+const WORKER_URL = 'https://your-worker.your-name.workers.dev';
 // ─────────────────────────────────────────────────────
 
 const CURRICULUM_SCHEMA = `{
@@ -100,11 +100,12 @@ export async function generateCurriculum(onboarding) {
     body: JSON.stringify(body)
   });
 
-  if (!res.ok) {
-    throw new Error(`Worker returned ${res.status}`);
-  }
+  const data = await res.json();
 
-  const data    = await res.json();
+  if (!res.ok) {
+    const detail = data?.error?.message || data?.message || JSON.stringify(data);
+    throw new Error(`Anthropic error (${res.status}): ${detail}`);
+  }
   const text    = data.content?.[0]?.text || '';
   const cleaned = text.replace(/```json|```/g, '').trim();
 
