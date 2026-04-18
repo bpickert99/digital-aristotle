@@ -1,6 +1,6 @@
 import {
   onAuthChange, signInWithGoogle, currentUser,
-  getUser, createUser, saveOnboarding,
+  getUser, createUser, saveOnboarding, markOnboarded,
   saveUnits, getUnits,
   saveCompletion, saveFeedback,
   awardXp, updateStreak, saveInterestFingerprint
@@ -119,7 +119,6 @@ function buildAuthScreen() {
 // ── Onboarding ───────────────────────────────────────
 function showOnboarding() {
   const obScreen = renderOnboarding({}, async (profile) => {
-    // Transition to generating screen
     obScreen.classList.remove('active');
     obScreen.classList.add('exit');
 
@@ -128,21 +127,31 @@ function showOnboarding() {
     setTimeout(() => genScreen.classList.add('active'), 20);
 
     try {
-      // Save onboarding to Firestore
       const uid = currentUser().uid;
-      await saveOnboarding(uid, profile);
+
+      // Save profile data but NOT onboarded:true yet
+      await saveOnboarding(uid, profile, false);
 
       // Generate curriculum via Claude API
-      const curriculum = await generateCurriculum(profile);
+      let curriculum;
+      try {
+        curriculum = await generateCurriculum(profile);
+      } catch (apiErr) {
+        throw new Error('API call failed: ' + apiErr.message);
+      }
+
+      if (!curriculum?.units?.length) {
+        throw new Error('Claude returned no units. Response: ' + JSON.stringify(curriculum));
+      }
+
       units = curriculum.units;
 
-      // Save generated units
+      // Save units then mark onboarding complete
       await saveUnits(uid, units);
+      await markOnboarded(uid);
 
-      // Refresh user data
       userData = await getUser(uid);
 
-      // Transition to home
       if (genScreen._stopMessages) genScreen._stopMessages();
       genScreen.classList.remove('active');
       genScreen.classList.add('exit');
@@ -151,20 +160,30 @@ function showOnboarding() {
 
     } catch (err) {
       console.error('Curriculum generation failed:', err);
-      showGenerationError(genScreen);
+      showGenerationError(genScreen, err.message);
     }
   });
 
   showScreen(obScreen);
 }
 
-function showGenerationError(genScreen) {
+function showGenerationError(genScreen, detail) {
+  if (genScreen._stopMessages) genScreen._stopMessages();
   genScreen.innerHTML = `
-    <div class="error-title">Something went wrong.</div>
-    <p class="error-msg">The curriculum couldn't be generated. Check your Worker URL and API key configuration.</p>
-    <button class="btn btn-primary" onclick="location.reload()" style="max-width:280px;margin-top:8px;">
-      Try again
-    </button>
+    <div style="padding:32px 24px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;">
+      <div class="error-title">Generation failed</div>
+      <p class="error-msg">The curriculum couldn't be built. Check your Cloudflare Worker URL and API key.</p>
+      <details style="font-family:var(--font-ui);font-size:0.75rem;color:var(--text-3);
+                      text-align:left;width:100%;max-width:360px;cursor:pointer;">
+        <summary style="margin-bottom:8px;">Error detail</summary>
+        <pre style="white-space:pre-wrap;word-break:break-all;background:var(--bg-3);
+                    padding:12px;border-radius:8px;line-height:1.5;">${detail || 'Unknown error'}</pre>
+      </details>
+      <button class="btn btn-primary" onclick="location.reload()"
+              style="max-width:280px;width:100%;margin-top:8px;">
+        Try again
+      </button>
+    </div>
   `;
   genScreen.classList.add('error-screen');
 }
