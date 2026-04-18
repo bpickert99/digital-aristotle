@@ -2,9 +2,23 @@ import { getOnboardingPairs } from '../coursePairs.js';
 
 // Onboarding flow: 5 steps → returns completed profile object
 
-// Pairwise course comparisons. Each pair compares two domains.
-// Choices are tallied to infer relative interest across subjects.
 const COURSE_PAIRS = getOnboardingPairs();
+
+// Used for the "prior knowledge" foundation step only
+const SUBJECTS = [
+  { id: 'history',     icon: '🏛', name: 'History & Politics',       desc: 'The forces that shaped the world' },
+  { id: 'science',     icon: '⚗',  name: 'Natural Sciences',          desc: 'Physics, chemistry, biology' },
+  { id: 'math',        icon: '∑',  name: 'Mathematics',               desc: 'Algebra, calculus, statistics' },
+  { id: 'literature',  icon: '◎',  name: 'Literature',                desc: 'Novels, poetry, and criticism' },
+  { id: 'philosophy',  icon: '◑',  name: 'Philosophy',                desc: 'Logic, ethics, metaphysics' },
+  { id: 'music',       icon: '♩',  name: 'Music',                     desc: 'Theory, history, listening' },
+  { id: 'anthropology',icon: '◈',  name: 'Anthropology',              desc: 'Culture, ritual, human origins' },
+  { id: 'economics',   icon: '⤢',  name: 'Economics',                 desc: 'Markets, behaviour, policy' },
+  { id: 'geography',   icon: '◻',  name: 'Geography',                 desc: 'Place, climate, geopolitics' },
+  { id: 'art',         icon: '◇',  name: 'Visual Art',                desc: 'Painting, design, architecture' },
+  { id: 'psychology',  icon: '◬',  name: 'Psychology',                desc: 'Mind, behaviour, cognition' },
+  { id: 'cs',          icon: '⋈',  name: 'Computing',                 desc: 'Code, systems, algorithms' },
+];
 
 const MATH_OPTIONS = [
   { value: 'avoidant',    label: 'Not for me right now',        sub: 'Focus on other subjects' },
