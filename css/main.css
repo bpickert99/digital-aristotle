@@ -505,17 +505,114 @@ html, body {
    PATH — MOBILE
 ═══════════════════════════════════════════════════════ */
 .path-outer {
-  padding: 8px 0 40px;
+  padding: 8px var(--pad) 40px;
   width: 100%;
 }
 
-.path-container {
-  padding: 0 var(--pad) 40px;
+/* Compact three-dot view */
+.path-compact {
+  display: flex;
+  flex-direction: column;
+}
+
+.path-row {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.path-dot-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0;
+  flex-shrink: 0;
+  width: 48px;
 }
+
+.path-dot {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.path-dot.current { cursor: pointer; }
+.path-dot.current:active { transform: scale(0.94); }
+
+.path-line {
+  flex: 1;
+  width: 2px;
+  min-height: 28px;
+  margin: 4px 0;
+}
+
+.path-text-col {
+  flex: 1;
+  padding: 8px 0 16px;
+  min-width: 0;
+}
+.path-text-col.current { padding-top: 4px; }
+
+.path-row-label {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.path-row-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 400;
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+
+.path-start-btn {
+  margin-top: 12px;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s;
+  min-height: 44px;
+}
+.path-start-btn:active { transform: scale(0.97); }
+
+.path-expand-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-top: 20px;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--text-3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s;
+}
+.path-expand-btn:hover {
+  border-color: var(--border-2);
+  color: var(--text-2);
+}
+
+.path-full.hidden { display: none; }
 
 .path-node-wrap {
   display: flex;
