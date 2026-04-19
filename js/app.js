@@ -245,8 +245,13 @@ function interleaveBookChapters(lessonNodes, bookData) {
   for (let i = 0; i < lessonNodes.length; i++) {
     result.push(lessonNodes[i]);
 
-    // After every 2 lessons, insert a book chapter (if available)
-    if ((i + 1) % 2 === 0 && chapterIdx < maxChapters) {
+    // Insert the first chapter right after lesson 1 (so it's in the first three nodes),
+    // then every 2 lessons after that
+    const shouldInsert =
+      (chapterIdx === 0 && i === 0) ||
+      (chapterIdx > 0 && (i + 1) % 2 === 0);
+
+    if (shouldInsert && chapterIdx < maxChapters) {
       const ch = bookData.chapters[chapterIdx];
       result.push({
         id:            `reading-${bookData.gutenbergId}-${chapterIdx}`,
@@ -523,11 +528,7 @@ function addBottomNav(homeScreen) {
   const nav = document.createElement('div');
   nav.className = 'bottom-nav';
 
-  // Desktop gets a wordmark at top of sidebar
-  const isDesktop = window.innerWidth >= 768;
-
   nav.innerHTML = `
-    ${isDesktop ? '<span class="nav-wordmark">Aristotle</span>' : ''}
     <div class="nav-item active" data-tab="home">
       <div class="nav-icon">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">

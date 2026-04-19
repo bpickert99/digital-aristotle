@@ -46,7 +46,7 @@ const ICONS = {
 };
 
 // ═══════════════════════════════════════════════════════
-// COMPACT — three dots (1 humanities + 1 STEM + 1 reading)
+// COMPACT — three dots (humanities + STEM + reading when available)
 // ═══════════════════════════════════════════════════════
 export function renderPath(nodes, onSelectNode) {
   const wrap = document.createElement('div');
@@ -60,23 +60,24 @@ export function renderPath(nodes, onSelectNode) {
     return wrap;
   }
 
-  // Pick the three "today" nodes: next humanities, next STEM, next reading
-  const incomplete = nodes.filter(n => n.status !== 'completed');
+  const incomplete       = nodes.filter(n => n.status !== 'completed');
   const humanitiesTracks = ['humanities', 'arts', 'social'];
   const stemTracks       = ['science', 'math'];
 
-  const nextHumanities = incomplete.find(n => n.type !== 'reading' && humanitiesTracks.includes(n.track));
-  const nextSTEM       = incomplete.find(n => n.type !== 'reading' && stemTracks.includes(n.track));
-  const nextReading    = incomplete.find(n => n.type === 'reading');
+  // Find the preferred trio
+  const humanitiesNode = incomplete.find(n => n.type !== 'reading' && humanitiesTracks.includes(n.track));
+  const stemNode       = incomplete.find(n => n.type !== 'reading' && stemTracks.includes(n.track));
+  const readingNode    = incomplete.find(n => n.type === 'reading');
 
-  // Build visibleNodes in order, skip if missing
-  const visibleNodes = [nextHumanities, nextSTEM, nextReading].filter(Boolean);
+  // Start with the preferred trio, in preferred visual order
+  let visibleNodes = [humanitiesNode, stemNode, readingNode].filter(Boolean);
 
-  // If we somehow didn't get three, fill in with next available nodes
+  // Always show 3 bubbles — fill in with next available nodes if preferred types missing
   if (visibleNodes.length < 3) {
     const usedIds = new Set(visibleNodes.map(n => n.id));
     for (const n of incomplete) {
-      if (!usedIds.has(n.id) && visibleNodes.length < 3) {
+      if (visibleNodes.length >= 3) break;
+      if (!usedIds.has(n.id)) {
         visibleNodes.push(n);
         usedIds.add(n.id);
       }
@@ -131,7 +132,7 @@ export function renderPath(nodes, onSelectNode) {
 
   wrap.appendChild(list);
 
-  // Expandable full path section
+  // Expandable full path
   const totalRemaining = incomplete.length;
   if (totalRemaining > visibleNodes.length) {
     const expandBtn = document.createElement('button');

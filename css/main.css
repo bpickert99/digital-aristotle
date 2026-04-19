@@ -1038,102 +1038,37 @@ html, body {
 .mt-auto { margin-top: auto; }
 
 /* ═══════════════════════════════════════════════════════
-   DESKTOP OVERRIDE (768px+)
-   Completely different layout — not a scaled mobile
+   DESKTOP — center content, keep bottom nav
 ═══════════════════════════════════════════════════════ */
 @media (min-width: 768px) {
-  :root { --pad: 0px; }
+  html, body { font-size: 17px; }
 
-  html, body { font-size: 17px; overflow: hidden; }
-
-  /* Two-column app shell */
-  #app {
-    flex-direction: row;
-    max-width: 1200px;
-    margin: 0 auto;
-    height: 100vh;
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-  }
-
-  /* Left sidebar — fixed navigation + path */
-  .bottom-nav {
-    position: relative;
-    width: 220px;
-    height: 100%;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 40px 0 0;
-    border-top: none;
-    border-right: 1px solid var(--border);
-    background: var(--bg-2);
-    z-index: 50;
-    backdrop-filter: none;
-    flex-shrink: 0;
-  }
-
-  .nav-item {
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 12px 24px;
-    opacity: 0.5;
-    border-radius: 0;
-  }
-  .nav-item.active { opacity: 1; background: var(--accent-bg); border-left: 2px solid var(--accent); padding-left: 22px; }
-  .nav-label { font-size: 0.88rem; font-weight: 400; }
-
-  .nav-wordmark {
-    font-family: var(--font-display);
-    font-size: 1.1rem; font-weight: 400;
-    color: var(--text-2); letter-spacing: 0.04em;
-    padding: 0 24px 32px;
-    display: block;
-  }
-
-  /* Main content area */
-  .screen {
-    position: relative;
-    flex: 1;
-    height: 100vh;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-  .screen::-webkit-scrollbar { width: 8px; }
-  .screen::-webkit-scrollbar-track { background: transparent; }
-  .screen::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.06);
-    border-radius: 4px;
-  }
-  .screen::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
-
-  /* Home — single centered column on desktop */
-  .home-screen {
-    padding: 40px 48px 80px;
-    max-width: 720px;
+  /* Center screens in a readable column */
+  .home-screen,
+  .profile-screen {
+    max-width: 640px;
     margin: 0 auto;
   }
 
-  .home-header    { display: none; }
-  .xp-bar-container { padding: 0 0 24px; }
-  .home-section-header { padding: 0 0 24px; }
-  .path-outer { padding: 8px 0 40px; }
-  .path-node { max-width: none; }
-
-  /* Lesson — centered single column with proper measure */
-  .lesson-screen { background: var(--bg); }
   .lesson-body {
     max-width: 660px;
     margin: 0 auto;
     padding: 40px 48px 60px;
   }
+
   .lesson-title { font-size: 2rem; }
   .lesson-hook  { font-size: 1.25rem; }
   .lesson-prose { font-size: 1.1rem; line-height: 1.9; }
-  .pull-quote-text { font-size: 1.15rem; }
-  .question-text { font-size: 1.15rem; }
 
-  /* Onboarding — centered card */
+  /* Cap the bottom nav width to match content */
+  .bottom-nav {
+    max-width: 640px;
+    margin: 0 auto;
+    left: 0;
+    right: 0;
+  }
+
+  /* Onboarding centered */
   .onboarding-screen {
     align-items: center;
     justify-content: center;
@@ -1153,11 +1088,19 @@ html, body {
   .pair-course-title { font-size: 1.2rem; }
   .ob-heading { font-size: 2.2rem; }
 
-  /* Auth — centered */
-  .auth-screen { max-width: 480px; margin: 0 auto; padding: 80px 0; }
+  /* Auth centered */
+  .auth-screen { max-width: 480px; margin: 0 auto; padding: 80px 40px; }
   .auth-wordmark { font-size: 3.5rem; }
 
-  /* Profile */
-  .profile-screen { padding: 48px 60px; max-width: 680px; }
+  /* Profile — wider stat grid */
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
+
+  /* Hover scrollbar */
+  .screen::-webkit-scrollbar { width: 8px; }
+  .screen::-webkit-scrollbar-track { background: transparent; }
+  .screen::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+  }
+  .screen::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
 }
