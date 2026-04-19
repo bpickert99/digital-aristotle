@@ -384,7 +384,7 @@ html, body {
 ═══════════════════════════════════════════════════════ */
 .home-screen {
   padding-top: var(--safe-top);
-  padding-bottom: calc(var(--safe-bottom) + 64px);
+  padding-bottom: calc(var(--safe-bottom) + 80px);
 }
 
 .home-header {
@@ -1038,16 +1038,16 @@ html, body {
 .mt-auto { margin-top: auto; }
 
 /* ═══════════════════════════════════════════════════════
-   DESKTOP — center content, keep bottom nav
+   DESKTOP — content capped to readable width, bottom nav visible
 ═══════════════════════════════════════════════════════ */
 @media (min-width: 768px) {
   html, body { font-size: 17px; }
 
-  /* Center screens in a readable column */
+  /* Give each screen type a centered inner container */
   .home-screen,
   .profile-screen {
-    max-width: 640px;
-    margin: 0 auto;
+    padding-left:  max(var(--pad), calc(50% - 320px));
+    padding-right: max(var(--pad), calc(50% - 320px));
   }
 
   .lesson-body {
@@ -1060,12 +1060,10 @@ html, body {
   .lesson-hook  { font-size: 1.25rem; }
   .lesson-prose { font-size: 1.1rem; line-height: 1.9; }
 
-  /* Cap the bottom nav width to match content */
+  /* Bottom nav — centered on desktop, matches content width */
   .bottom-nav {
-    max-width: 640px;
-    margin: 0 auto;
-    left: 0;
-    right: 0;
+    left: max(0px, calc(50% - 320px));
+    right: max(0px, calc(50% - 320px));
   }
 
   /* Onboarding centered */
@@ -1089,18 +1087,23 @@ html, body {
   .ob-heading { font-size: 2.2rem; }
 
   /* Auth centered */
-  .auth-screen { max-width: 480px; margin: 0 auto; padding: 80px 40px; }
+  .auth-screen {
+    padding-left:  max(var(--pad), calc(50% - 240px));
+    padding-right: max(var(--pad), calc(50% - 240px));
+  }
   .auth-wordmark { font-size: 3.5rem; }
 
   /* Profile — wider stat grid */
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
 
-  /* Hover scrollbar */
+  /* Scrollbar */
   .screen::-webkit-scrollbar { width: 8px; }
   .screen::-webkit-scrollbar-track { background: transparent; }
   .screen::-webkit-scrollbar-thumb {
     background: rgba(255,255,255,0.06);
     border-radius: 4px;
   }
+  .screen::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
+}
   .screen::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
 }

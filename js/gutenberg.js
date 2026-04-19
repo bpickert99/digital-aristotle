@@ -1,4 +1,4 @@
-// Project Gutenberg integration
+// Project Gutenberg integration — uses HTML version for reliable chapter extraction
 const WORKER_URL = 'https://flat-boat-7a4b.bpickert99.workers.dev';
 
 export const GUTENBERG_BOOKS = [
@@ -32,44 +32,202 @@ export function selectBook(vocabLevel, interests = []) {
   return top[Math.floor(Math.random() * top.length)];
 }
 
-export async function fetchBookText(gutenbergId) {
-  const urls = [
-    `https://www.gutenberg.org/files/${gutenbergId}/${gutenbergId}-0.txt`,
-    `https://www.gutenberg.org/files/${gutenbergId}/${gutenbergId}.txt`,
-    `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.txt`,
+// ═══════════════════════════════════════════════════════
+// FETCH — prefer HTML version for reliable parsing
+// ═══════════════════════════════════════════════════════
+export async function fetchBook(gutenbergId) {
+  // Try HTML versions first — they have proper structure
+  const htmlUrls = [
+    `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}-images.html`,
+    `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.html`,
+    `https://www.gutenberg.org/files/${gutenbergId}/${gutenbergId}-h/${gutenbergId}-h.htm`,
   ];
 
   const res = await fetch(WORKER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gutenberg: true, urls })
+    body: JSON.stringify({ gutenberg: true, urls: htmlUrls })
   });
 
-  if (!res.ok) throw new Error('Failed to fetch book text');
+  if (!res.ok) throw new Error('Failed to fetch book');
   const data = await res.json();
   if (!data.text) throw new Error('No text in response');
-  return data.text;
+
+  return { content: data.text, isHtml: looksLikeHtml(data.text) };
+}
+
+// Backwards compat: some callers still use fetchBookText
+export async function fetchBookText(gutenbergId) {
+  const { content } = await fetchBook(gutenbergId);
+  return content;
+}
+
+function looksLikeHtml(text) {
+  const head = text.slice(0, 500).toLowerCase();
+  return head.includes('<html') || head.includes('<!doctype html') || head.includes('<body');
 }
 
 // ═══════════════════════════════════════════════════════
-// CHAPTER PARSING — robust TOC detection
+// PARSE — handles both HTML and plain text
 // ═══════════════════════════════════════════════════════
 export function parseChapters(text) {
-  // Strip Gutenberg boilerplate
-  let body = stripBoilerplate(text);
+  if (looksLikeHtml(text)) {
+    return parseChaptersFromHtml(text);
+  }
+  return parseChaptersFromText(text);
+}
 
-  // Find the start of real content by identifying chapter markers
-  // and picking the one that's actually followed by prose (not more markers)
-  const realStart = findRealStoryStart(body);
-  body = body.slice(realStart);
+// ── HTML parser — uses DOM to find real chapters ──────
+function parseChaptersFromHtml(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
 
-  // Now parse chapters from the real story
-  const chapters = extractChapters(body);
+  // Gutenberg HTML typically uses <h2> with id="c1", id="c2", etc.
+  // Or <h2 class="chapter"> or similar patterns
+  let chapterHeadings = [];
+
+  // Strategy 1: look for h2 elements with id starting with "c" followed by digits
+  const allH2 = [...doc.querySelectorAll('h2, h3, h4')];
+  chapterHeadings = allH2.filter(h => {
+    const id = h.getAttribute('id') || '';
+    const text = (h.textContent || '').trim();
+    // Real chapter IDs are usually "c1", "c2", "chap01", "chapter-i", etc.
+    const isChapterId = /^(c|chap|chapter[-_]?)\d+$/i.test(id) || /^ch\d+$/i.test(id);
+    // Or the text starts with "Chapter" and has content after it
+    const startsWithChapter = /^(chapter|CHAPTER)\s+[IVXLCDM\d]+/i.test(text);
+    return isChapterId || startsWithChapter;
+  });
+
+  // Strategy 2: if no h2s matched, look for any anchor with id="c1" through "c99"
+  if (chapterHeadings.length < 2) {
+    const anchors = [...doc.querySelectorAll('[id]')].filter(el => {
+      const id = el.getAttribute('id') || '';
+      return /^c\d+$/i.test(id) || /^chap\d+$/i.test(id);
+    });
+    if (anchors.length >= 2) {
+      chapterHeadings = anchors;
+    }
+  }
+
+  // If still no chapters found, fall back to text parsing
+  if (chapterHeadings.length < 2) {
+    return parseChaptersFromText(doc.body?.textContent || html);
+  }
+
+  // Extract content between each heading and the next
+  const chapters = [];
+  for (let i = 0; i < chapterHeadings.length; i++) {
+    const heading = chapterHeadings[i];
+    const nextHeading = chapterHeadings[i + 1];
+    const title = cleanChapterTitle(heading.textContent || '', i + 1);
+
+    // Walk sibling elements until we hit the next heading
+    const paragraphs = [];
+    let node = heading.nextElementSibling;
+
+    while (node && node !== nextHeading) {
+      // Stop if we hit a subsequent h2/h3/h4 that's also a chapter marker
+      if (chapterHeadings.includes(node)) break;
+
+      const tagName = node.tagName?.toLowerCase();
+
+      // Extract text from paragraphs, blockquotes, divs with text
+      if (tagName === 'p' || tagName === 'blockquote') {
+        const text = cleanText(node.textContent || '');
+        if (text.length > 0) paragraphs.push(text);
+      } else if (tagName === 'div' && !node.querySelector('img')) {
+        // Generic div with text (but not image containers)
+        const text = cleanText(node.textContent || '');
+        if (text.length > 20) paragraphs.push(text);
+      }
+
+      node = node.nextElementSibling;
+    }
+
+    const content = paragraphs.join('\n\n');
+    const wordCount = content.split(/\s+/).filter(Boolean).length;
+
+    // Skip chapters with no real content (likely malformed)
+    if (wordCount < 100) continue;
+
+    chapters.push({
+      index: chapters.length,
+      title: title,
+      content: content,
+      wordCount: wordCount,
+      readingMinutes: Math.ceil(wordCount / 250)
+    });
+  }
 
   if (chapters.length >= 2) return chapters;
+  return parseChaptersFromText(doc.body?.textContent || html);
+}
 
-  // Fallback: chunk the body into ~3000-word segments
+function cleanChapterTitle(rawTitle, fallbackNumber) {
+  let title = cleanText(rawTitle);
+  if (!title || title.length > 120) {
+    return `Chapter ${fallbackNumber}`;
+  }
+  return title;
+}
+
+function cleanText(s) {
+  return String(s || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+/g, ' ')
+    .replace(/\[[^\]]*\]/g, '') // remove [Illustration] markers
+    .trim();
+}
+
+// ── Plain text parser (fallback) ──────────────────────
+function parseChaptersFromText(text) {
+  const body = stripBoilerplate(text);
+
+  // Match chapter markers
+  const chapterRegex = /^(?:CHAPTER|Chapter)\s+([IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)\.?\s*(.*)$/gm;
+  const markers = [...body.matchAll(chapterRegex)];
+
+  if (markers.length < 2) return chunkByWordCount(body, 3000);
+
+  const candidates = [];
+  for (let i = 0; i < markers.length; i++) {
+    const m = markers[i];
+    const start = m.index;
+    const end = i + 1 < markers.length ? markers[i + 1].index : body.length;
+    const full = body.slice(start, end).trim();
+    const headingLine = m[0].trim();
+    const content = full.slice(headingLine.length).trim();
+    const wordCount = content.split(/\s+/).filter(Boolean).length;
+
+    candidates.push({ headingLine, content, wordCount, number: m[1], titleAfter: (m[2] || '').trim() });
+  }
+
+  // Real chapters have substantial prose
+  const real = candidates.filter(c => c.wordCount >= 500);
+
+  if (real.length >= 2) {
+    return real.map((c, i) => ({
+      index: i,
+      title: buildChapterTitle(c),
+      content: c.content,
+      wordCount: c.wordCount,
+      readingMinutes: Math.ceil(c.wordCount / 250)
+    }));
+  }
+
   return chunkByWordCount(body, 3000);
+}
+
+function buildChapterTitle(c) {
+  const num = c.number;
+  const label = /^\d+$/.test(num) ? `Chapter ${num}`
+    : /^[IVXLCDM]+$/i.test(num) ? `Chapter ${num.toUpperCase()}`
+    : `Chapter ${num.charAt(0).toUpperCase() + num.slice(1).toLowerCase()}`;
+
+  if (c.titleAfter && c.titleAfter.length > 0 && c.titleAfter.length < 80) {
+    const subtitle = c.titleAfter.replace(/\s+/g, ' ').replace(/[.—–-]+$/, '').trim();
+    if (subtitle) return `${label}: ${subtitle}`;
+  }
+  return label;
 }
 
 function stripBoilerplate(text) {
@@ -97,96 +255,6 @@ function stripBoilerplate(text) {
   return text.slice(start, end).trim();
 }
 
-// Find where the actual story begins, skipping TOC, illustrations list, preface etc.
-function findRealStoryStart(body) {
-  // Find all "Chapter 1" / "Chapter I" / "Chapter One" markers
-  const pattern = /\n\s*(CHAPTER\s+I\b[^IVX]|CHAPTER\s+1\b|CHAPTER\s+ONE\b|Chapter\s+I\b[^IVX]|Chapter\s+1\b|Chapter\s+One\b)/g;
-  const matches = [...body.matchAll(pattern)];
-
-  if (matches.length === 0) return 0;
-  if (matches.length === 1) return matches[0].index;
-
-  // For each candidate, check if the following content looks like prose
-  // (not another chapter marker within 500 chars — that would mean it's a TOC entry)
-  for (const match of matches) {
-    const afterStart = match.index + match[0].length;
-    const nextChunk  = body.slice(afterStart, afterStart + 2000);
-
-    // Count chapter markers in the next 2000 chars
-    // In a TOC, Chapter II would appear within a few hundred chars
-    // In real prose, Chapter II comes thousands of chars later
-    const nextMarkers = nextChunk.match(/\b(CHAPTER\s+(II|2|TWO|III|3)\b|Chapter\s+(II|2|Two|III|3)\b)/gi);
-    const nextMarkerCount = nextMarkers ? nextMarkers.length : 0;
-
-    // Also check for indicators of prose
-    const hasProseIndicators = /[.!?]\s+[A-Z][a-z]{4,}/g.test(nextChunk);
-    const wordCount = nextChunk.split(/\s+/).length;
-
-    // Real chapter: lots of words, proper sentence structure, no nearby chapter markers
-    if (nextMarkerCount === 0 && hasProseIndicators && wordCount > 200) {
-      return match.index;
-    }
-  }
-
-  // Fallback: use the last candidate — TOCs come first, story comes last
-  return matches[matches.length - 1].index;
-}
-
-function extractChapters(body) {
-  // Common chapter heading patterns
-  const headingPatterns = [
-    /^CHAPTER\s+[IVXLCDM]+[\.\s]*[A-Z][^\n]*$/gim,
-    /^CHAPTER\s+\d+[\.\s]*[A-Z][^\n]*$/gim,
-    /^CHAPTER\s+[IVXLCDM]+\s*$/gim,
-    /^CHAPTER\s+\d+\s*$/gim,
-    /^Chapter\s+[IVXLCDM]+[\.\s]*$/gm,
-    /^Chapter\s+\d+[\.\s]*$/gm,
-  ];
-
-  for (const pattern of headingPatterns) {
-    const matches = [...body.matchAll(pattern)];
-    if (matches.length >= 2) {
-      const chapters = [];
-
-      for (let i = 0; i < matches.length; i++) {
-        const chStart   = matches[i].index;
-        const chEnd     = i + 1 < matches.length ? matches[i + 1].index : body.length;
-        const rawContent = body.slice(chStart, chEnd).trim();
-        const rawTitle  = matches[i][0].trim();
-
-        // Clean up title — take first line only
-        const title = rawTitle.split('\n')[0].trim();
-
-        // Remove the heading from content, keep rest
-        const content = rawContent.slice(rawTitle.length).trim();
-        const wordCount = content.split(/\s+/).filter(Boolean).length;
-
-        // Skip if content is too short to be a real chapter
-        if (wordCount < 400) continue;
-
-        // Skip if content is mostly short lines (likely a TOC section)
-        const lines = content.split('\n').filter(l => l.trim().length > 0);
-        if (lines.length > 0) {
-          const avgLineLen  = lines.reduce((s, l) => s + l.trim().length, 0) / lines.length;
-          if (avgLineLen < 40) continue; // looks like a list, not prose
-        }
-
-        chapters.push({
-          index:          chapters.length,
-          title:          title,
-          content:        content,
-          wordCount:      wordCount,
-          readingMinutes: Math.ceil(wordCount / 250)
-        });
-      }
-
-      if (chapters.length >= 2) return chapters;
-    }
-  }
-
-  return [];
-}
-
 function chunkByWordCount(body, chunkSize) {
   const words  = body.split(/\s+/).filter(Boolean);
   const chunks = [];
@@ -194,10 +262,10 @@ function chunkByWordCount(body, chunkSize) {
     const content = words.slice(i, i + chunkSize).join(' ');
     const wc = Math.min(chunkSize, words.length - i);
     chunks.push({
-      index:          chunks.length,
-      title:          `Part ${chunks.length + 1}`,
-      content:        content,
-      wordCount:      wc,
+      index: chunks.length,
+      title: `Part ${chunks.length + 1}`,
+      content: content,
+      wordCount: wc,
       readingMinutes: Math.ceil(wc / 250)
     });
   }

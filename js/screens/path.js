@@ -132,28 +132,6 @@ export function renderPath(nodes, onSelectNode) {
 
   wrap.appendChild(list);
 
-  // Expandable full path
-  const totalRemaining = incomplete.length;
-  if (totalRemaining > visibleNodes.length) {
-    const expandBtn = document.createElement('button');
-    expandBtn.className = 'path-expand-btn';
-    expandBtn.textContent = `See full path (${totalRemaining} total) ↓`;
-
-    const fullPath = document.createElement('div');
-    fullPath.className = 'path-full hidden';
-    fullPath.appendChild(renderFullPath(nodes, onSelectNode));
-
-    expandBtn.addEventListener('click', () => {
-      const isHidden = fullPath.classList.toggle('hidden');
-      expandBtn.textContent = isHidden
-        ? `See full path (${totalRemaining} total) ↓`
-        : `Hide full path ↑`;
-    });
-
-    wrap.appendChild(expandBtn);
-    wrap.appendChild(fullPath);
-  }
-
   return wrap;
 }
 

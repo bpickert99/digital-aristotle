@@ -1,5 +1,5 @@
 // Paper-style e-reader with page-turn animation
-// Measures actual rendered text to paginate without cutoff
+// Pagination measures actual rendered height to fill pages completely
 
 export function renderReader(chapter, book, { onComplete, onBack }) {
   const overlay = document.createElement('div');
@@ -11,12 +11,11 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
     opacity:0;transition:opacity 0.3s;
   `;
 
-  let fontSize    = 18;  // px
+  let fontSize    = 18;
   let pages       = [];
   let currentPage = 0;
 
   overlay.innerHTML = `
-    <!-- Header -->
     <div style="
       display:flex;align-items:center;justify-content:space-between;
       padding:calc(env(safe-area-inset-top,0px)+12px) 20px 12px;
@@ -31,12 +30,14 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
         -webkit-tap-highlight-color:transparent;
       ">← Back</button>
 
-      <div style="text-align:center;flex:1;padding:0 12px;">
+      <div style="text-align:center;flex:1;padding:0 12px;min-width:0;">
         <div style="font-family:var(--font-ui);font-size:0.68rem;
                     letter-spacing:0.1em;text-transform:uppercase;
-                    color:rgba(255,255,255,0.35);">${escapeHtml(book.title)}</div>
+                    color:rgba(255,255,255,0.35);
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(book.title)}</div>
         <div style="font-family:var(--font-body);font-size:0.82rem;font-style:italic;
-                    color:rgba(255,255,255,0.45);margin-top:3px;">${escapeHtml(chapter.title)}</div>
+                    color:rgba(255,255,255,0.45);margin-top:3px;
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(chapter.title)}</div>
       </div>
 
       <button id="reader-font" style="
@@ -47,76 +48,68 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
       ">Aa</button>
     </div>
 
-    <!-- Page area -->
     <div id="page-area" style="
       flex:1;
       display:flex;align-items:center;justify-content:center;
       padding:16px 16px 0;
       overflow:hidden;
-      perspective: 2000px;
+      perspective:2000px;
       position:relative;
     ">
-      <!-- The book page -->
-      <div id="page-stage" style="
+      <div id="page-current" style="
         position:relative;
         width:100%;max-width:600px;height:100%;
-        transform-style:preserve-3d;
+        background:#f4ebd7;
+        background-image:
+          radial-gradient(circle at 15% 20%, rgba(139,122,90,0.04) 0%, transparent 40%),
+          radial-gradient(circle at 85% 80%, rgba(139,122,90,0.03) 0%, transparent 45%);
+        border-radius:4px 8px 8px 4px;
+        box-shadow:
+          0 2px 8px rgba(0,0,0,0.3),
+          0 12px 30px rgba(0,0,0,0.4),
+          inset 4px 0 6px -4px rgba(0,0,0,0.15);
+        padding:36px 40px;
+        overflow:hidden;
+        transform-origin:left center;
+        transition:transform 0.6s cubic-bezier(0.4,0,0.2,1);
+        backface-visibility:hidden;
+        display:flex;flex-direction:column;
       ">
-        <div id="page-current" class="page-surface" style="
-          position:absolute;inset:0;
-          background:#f4ebd7;
-          background-image:
-            radial-gradient(circle at 15% 20%, rgba(139,122,90,0.04) 0%, transparent 40%),
-            radial-gradient(circle at 85% 80%, rgba(139,122,90,0.03) 0%, transparent 45%);
-          border-radius:4px 8px 8px 4px;
-          box-shadow:
-            0 2px 8px rgba(0,0,0,0.3),
-            0 12px 30px rgba(0,0,0,0.4),
-            inset 4px 0 6px -4px rgba(0,0,0,0.15);
-          padding:32px 32px 32px 40px;
+        <div id="page-content" style="
+          font-family:'Crimson Pro',Georgia,serif;
+          font-size:${fontSize}px;
+          line-height:1.75;
+          color:#3a2817;
+          letter-spacing:0.005em;
+          flex:1;
           overflow:hidden;
-          transform-origin:left center;
-          transition:transform 0.6s cubic-bezier(0.4,0,0.2,1);
-          backface-visibility:hidden;
-          display:flex;flex-direction:column;
-        ">
-          <div id="page-content" style="
-            font-family:'Crimson Pro',Georgia,serif;
-            font-size:${fontSize}px;
-            line-height:1.75;
-            color:#3a2817;
-            letter-spacing:0.005em;
-            flex:1;
-            overflow:hidden;
-            word-wrap:break-word;
-          "></div>
+          word-wrap:break-word;
+          text-align:left;
+        "></div>
 
-          <div id="page-footer" style="
-            flex-shrink:0;
-            padding-top:12px;
-            margin-top:12px;
-            border-top:1px solid rgba(58,40,23,0.1);
-            display:flex;justify-content:space-between;align-items:center;
-            font-family:'Crimson Pro',Georgia,serif;
-            font-size:12px;font-style:italic;
-            color:rgba(58,40,23,0.45);
-          ">
-            <span>${escapeHtml(book.author)}</span>
-            <span id="page-num">1</span>
-          </div>
+        <div id="page-footer" style="
+          flex-shrink:0;
+          padding-top:14px;
+          margin-top:14px;
+          border-top:1px solid rgba(58,40,23,0.15);
+          display:flex;justify-content:space-between;align-items:center;
+          font-family:'Crimson Pro',Georgia,serif;
+          font-size:12px;font-style:italic;
+          color:rgba(58,40,23,0.5);
+        ">
+          <span>${escapeHtml(book.author)}</span>
+          <span id="page-num">1</span>
         </div>
       </div>
     </div>
 
-    <!-- Bottom nav -->
     <div style="
       display:flex;align-items:center;justify-content:space-between;
       padding:14px 24px calc(env(safe-area-inset-bottom,0px)+14px);
       background:#2a251f;
-      flex-shrink:0;
-      gap:12px;
+      flex-shrink:0;gap:12px;
     ">
-      <button id="page-prev" class="nav-btn" style="
+      <button id="page-prev" style="
         background:rgba(255,255,255,0.05);
         border:1px solid rgba(255,255,255,0.08);
         border-radius:10px;padding:10px 18px;
@@ -124,15 +117,14 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
         color:rgba(255,255,255,0.5);cursor:pointer;
         min-height:44px;min-width:90px;
         -webkit-tap-highlight-color:transparent;
-        transition:background 0.15s, opacity 0.2s;
       ">← Prev</button>
 
       <div id="page-indicator" style="
         font-family:var(--font-ui);font-size:0.78rem;
         color:rgba(255,255,255,0.35);flex:1;text-align:center;
-      ">1 / 1</div>
+      ">…</div>
 
-      <button id="page-next" class="nav-btn" style="
+      <button id="page-next" style="
         background:rgba(255,255,255,0.08);
         border:1px solid rgba(255,255,255,0.12);
         border-radius:10px;padding:10px 18px;
@@ -140,149 +132,120 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
         color:rgba(255,255,255,0.85);cursor:pointer;
         min-height:44px;min-width:90px;
         -webkit-tap-highlight-color:transparent;
-        transition:all 0.2s;
       ">Next →</button>
     </div>
-
-    <!-- Hidden measurement surface -->
-    <div id="measure-page" style="
-      position:absolute;left:-99999px;top:0;
-      width:600px;
-      padding:32px 32px 32px 40px;
-      font-family:'Crimson Pro',Georgia,serif;
-      font-size:${fontSize}px;
-      line-height:1.75;
-      color:#3a2817;
-      letter-spacing:0.005em;
-      word-wrap:break-word;
-      visibility:hidden;
-      pointer-events:none;
-    "></div>
   `;
 
   document.getElementById('app').appendChild(overlay);
 
-  // Paginate once DOM is ready
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      overlay.style.opacity = '1';
-      paginate();
-      renderPage(0);
-    }, 20);
-  });
+  // Wait for layout, then paginate using the real element dimensions
+  setTimeout(() => {
+    overlay.style.opacity = '1';
+    paginate();
+    renderPage(0);
+  }, 80);
 
-  // ── Pagination by measuring rendered height ──────────
+  // ── Pagination by measuring inside the actual page ───
+  // Strategy: fill the real page-content with paragraphs one at a time,
+  // and when scrollHeight exceeds clientHeight, back up one paragraph
   function paginate() {
-    const pageEl    = overlay.querySelector('#page-current');
-    const measureEl = overlay.querySelector('#measure-page');
-    if (!pageEl || !measureEl) return;
+    const contentEl = overlay.querySelector('#page-content');
+    if (!contentEl) return;
 
-    // Calculate available content height on a page
-    const pageHeight   = pageEl.offsetHeight;
-    const contentPad   = 32 + 32; // top + bottom padding of page
-    const footerHeight = overlay.querySelector('#page-footer')?.offsetHeight || 40;
-    const availHeight  = pageHeight - contentPad - footerHeight - 24;
+    // Force measurement of available content height
+    const availHeight = contentEl.clientHeight;
 
-    // Also size the measure element to match content width
-    const contentWidth = pageEl.offsetWidth - 40 - 32; // left - right padding
-    measureEl.style.width = contentWidth + 'px';
+    if (availHeight <= 50) {
+      setTimeout(paginate, 100);
+      return;
+    }
 
-    // Clean text into paragraphs
+    // Clean source into paragraphs
     const paragraphs = chapter.content
       .replace(/\r\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .split(/\n\n+/)
-      .map(p => p.replace(/\n/g, ' ').trim())
+      .map(p => p.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
       .filter(p => p.length > 0);
 
     pages = [];
-    let currentParas = [];
+    let i = 0;
 
-    const flushPage = () => {
-      if (currentParas.length > 0) {
-        pages.push(currentParas.join('\n\n'));
-        currentParas = [];
-      }
-    };
+    while (i < paragraphs.length) {
+      // Start a new page — add paragraphs until overflow
+      const pageParas = [];
+      contentEl.innerHTML = '';
 
-    for (const para of paragraphs) {
-      // Try adding this paragraph to current page
-      const testContent = [...currentParas, para].join('\n\n');
-      measureEl.innerHTML = formatParas(testContent.split('\n\n'));
+      while (i < paragraphs.length) {
+        const para = paragraphs[i];
+        const indent = pageParas.length === 0 ? '' : 'text-indent:1.5em;';
+        const pEl = document.createElement('p');
+        pEl.style.cssText = `margin:0 0 1em 0;${indent}`;
+        pEl.textContent = para;
+        contentEl.appendChild(pEl);
 
-      if (measureEl.offsetHeight <= availHeight) {
-        currentParas.push(para);
-      } else {
-        // Paragraph doesn't fit — flush current page and start new
-        if (currentParas.length > 0) {
-          flushPage();
-          // Now try the paragraph alone on a new page
-          measureEl.innerHTML = formatParas([para]);
-          if (measureEl.offsetHeight <= availHeight) {
-            currentParas.push(para);
+        // Check if we overflowed
+        if (contentEl.scrollHeight > availHeight) {
+          // Too much — remove the last paragraph we added
+          if (pageParas.length > 0) {
+            // Back up: the current paragraph goes on the next page
+            contentEl.removeChild(pEl);
+            break;
           } else {
-            // Paragraph is too long for a page alone — split by sentences
-            const sentences = para.split(/(?<=[.!?])\s+/);
-            let subParas = [];
-            for (const sent of sentences) {
-              const test = [...subParas, sent].join(' ');
-              measureEl.innerHTML = formatParas([test]);
-              if (measureEl.offsetHeight <= availHeight) {
-                subParas.push(sent);
-              } else {
-                if (subParas.length > 0) {
-                  currentParas.push(subParas.join(' '));
-                  flushPage();
-                  subParas = [sent];
-                } else {
-                  // Single sentence too long — just push it (rare)
-                  currentParas.push(sent);
-                  flushPage();
-                  subParas = [];
+            // Single paragraph doesn't fit alone — split by words
+            contentEl.removeChild(pEl);
+            const words = para.split(' ');
+            let chunk = [];
+
+            for (const word of words) {
+              const testPara = [...chunk, word].join(' ');
+              const testEl = document.createElement('p');
+              testEl.style.cssText = 'margin:0 0 1em 0;';
+              testEl.textContent = testPara;
+              contentEl.appendChild(testEl);
+
+              if (contentEl.scrollHeight > availHeight) {
+                contentEl.removeChild(testEl);
+                if (chunk.length > 0) {
+                  pageParas.push(chunk.join(' '));
                 }
-              }
-            }
-            if (subParas.length > 0) currentParas.push(subParas.join(' '));
-          }
-        } else {
-          // First paragraph doesn't fit — split it by sentences
-          const sentences = para.split(/(?<=[.!?])\s+/);
-          let subParas = [];
-          for (const sent of sentences) {
-            const test = [...subParas, sent].join(' ');
-            measureEl.innerHTML = formatParas([test]);
-            if (measureEl.offsetHeight <= availHeight) {
-              subParas.push(sent);
-            } else {
-              if (subParas.length > 0) {
-                currentParas.push(subParas.join(' '));
-                flushPage();
-                subParas = [sent];
+                chunk = [word];
+                // Also add just the chunk to the dom for next iteration
+                const keepEl = document.createElement('p');
+                keepEl.style.cssText = 'margin:0 0 1em 0;';
+                keepEl.textContent = chunk.join(' ');
+                break; // break word loop, flush this page
               } else {
-                currentParas.push(sent);
-                flushPage();
-                subParas = [];
+                contentEl.removeChild(testEl);
+                chunk.push(word);
               }
             }
+
+            // If everything fit in chunk, push it; update paragraphs list with leftover
+            if (chunk.length > 0 && chunk.length < words.length) {
+              // Split happened — replace this paragraph with the remaining words
+              paragraphs[i] = words.slice(chunk.length).join(' ');
+            } else if (chunk.length === words.length) {
+              pageParas.push(chunk.join(' '));
+              i++;
+            }
+            break;
           }
-          if (subParas.length > 0) currentParas.push(subParas.join(' '));
         }
+
+        pageParas.push(para);
+        i++;
+      }
+
+      if (pageParas.length > 0) {
+        pages.push(pageParas);
+      } else {
+        // Safety valve — shouldn't happen but prevents infinite loop
+        break;
       }
     }
 
-    flushPage();
-
-    if (pages.length === 0) pages = [chapter.content];
-  }
-
-  function formatParas(paras) {
-    return paras
-      .filter(p => p && p.trim())
-      .map((p, i) => {
-        const style = i === 0 ? '' : 'text-indent:1.5em;';
-        return `<p style="margin-bottom:1em;${style}">${escapeHtml(p)}</p>`;
-      })
-      .join('');
+    if (pages.length === 0) pages = [[chapter.content]];
   }
 
   // ── Render a specific page ───────────────────────────
@@ -295,8 +258,15 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
     const nextBtn   = overlay.querySelector('#page-next');
 
     if (contentEl) {
-      const paras = pages[currentPage].split('\n\n');
-      contentEl.innerHTML = formatParas(paras);
+      contentEl.innerHTML = '';
+      const paras = pages[currentPage] || [''];
+      paras.forEach((p, i) => {
+        const indent = i === 0 ? '' : 'text-indent:1.5em;';
+        const pEl = document.createElement('p');
+        pEl.style.cssText = `margin:0 0 1em 0;${indent}`;
+        pEl.textContent = p;
+        contentEl.appendChild(pEl);
+      });
     }
 
     if (numEl) numEl.textContent = (currentPage + 1);
@@ -309,13 +279,13 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
 
     if (nextBtn) {
       if (currentPage === pages.length - 1) {
-        nextBtn.textContent    = 'Done ✓';
+        nextBtn.textContent      = 'Done ✓';
         nextBtn.style.background = '#c4a44a';
         nextBtn.style.color      = '#1a1610';
         nextBtn.style.border     = '1px solid #c4a44a';
         nextBtn.style.fontWeight = '600';
       } else {
-        nextBtn.textContent    = 'Next →';
+        nextBtn.textContent      = 'Next →';
         nextBtn.style.background = 'rgba(255,255,255,0.08)';
         nextBtn.style.color      = 'rgba(255,255,255,0.85)';
         nextBtn.style.border     = '1px solid rgba(255,255,255,0.12)';
@@ -334,17 +304,13 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
     const pageEl = overlay.querySelector('#page-current');
     if (!pageEl) return;
 
-    // Animate the current page turning
     const rotation = direction === 'next' ? '-170deg' : '170deg';
     pageEl.style.transformOrigin = direction === 'next' ? 'left center' : 'right center';
     pageEl.style.transform = `rotateY(${rotation})`;
     pageEl.style.opacity   = '0.2';
 
     setTimeout(() => {
-      // Update content mid-turn
       renderPage(currentPage + (direction === 'next' ? 1 : -1));
-
-      // Flip from the opposite side to reveal
       pageEl.style.transition = 'none';
       pageEl.style.transform  = `rotateY(${direction === 'next' ? '170deg' : '-170deg'})`;
       pageEl.style.opacity    = '0.2';
@@ -367,14 +333,11 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
     const idx = sizes.indexOf(fontSize);
     fontSize = sizes[(idx + 1) % sizes.length];
     const ce = overlay.querySelector('#page-content');
-    const me = overlay.querySelector('#measure-page');
     if (ce) ce.style.fontSize = fontSize + 'px';
-    if (me) me.style.fontSize = fontSize + 'px';
     paginate();
     renderPage(Math.min(currentPage, pages.length - 1));
   });
 
-  // Touch swipe
   let touchStartX = 0;
   overlay.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
   overlay.addEventListener('touchend', e => {
@@ -382,19 +345,6 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
     if (Math.abs(dx) > 60) {
       if (dx < 0) turnPage('next');
       else turnPage('prev');
-    }
-  });
-
-  // Click on page sides for navigation
-  const pageArea = overlay.querySelector('#page-area');
-  pageArea?.addEventListener('click', (e) => {
-    const rect = pageArea.getBoundingClientRect();
-    const x    = e.clientX - rect.left;
-    const w    = rect.width;
-    // Only trigger if clicking far edges, not middle
-    if (e.target.id === 'page-area' || e.target.id === 'page-stage') {
-      if (x < w * 0.25) turnPage('prev');
-      else if (x > w * 0.75) turnPage('next');
     }
   });
 
