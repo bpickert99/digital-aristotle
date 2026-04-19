@@ -100,7 +100,14 @@ export function parseChapters(text) {
     if (match) { end = match.index; break; }
   }
 
-  const body = text.slice(start, end).trim();
+  let body = text.slice(start, end).trim();
+
+  // Skip front matter: title page, table of contents, preface, illustrations list
+  // Find the FIRST real chapter heading and start there
+  const frontMatterEnd = findFirstRealChapter(body);
+  if (frontMatterEnd > 0) {
+    body = body.slice(frontMatterEnd);
+  }
 
   // Chapter detection patterns (order matters — more specific first)
   const chapterPatterns = [
@@ -127,14 +134,20 @@ export function parseChapters(text) {
         const title    = matches[i][0].trim();
         const wordCount = content.split(/\s+/).length;
 
-        // Skip very short sections (front matter, etc.)
-        if (wordCount < 300) continue;
+        // Skip short sections — must be real prose, not headers
+        if (wordCount < 500) continue;
+
+        // Skip if content looks like a table of contents
+        // (lots of short lines with dashes/page numbers)
+        const lines     = content.split('\n').slice(0, 20);
+        const shortLines = lines.filter(l => l.trim().length > 0 && l.trim().length < 60).length;
+        if (shortLines > 12) continue; // looks like a TOC
 
         chapters.push({
-          index:     chapters.length,
-          title:     title || `Chapter ${chapters.length + 1}`,
-          content:   content,
-          wordCount: wordCount,
+          index:          chapters.length,
+          title:          title || `Chapter ${chapters.length + 1}`,
+          content:        content,
+          wordCount:      wordCount,
           readingMinutes: Math.ceil(wordCount / 250)
         });
       }
@@ -149,12 +162,39 @@ export function parseChapters(text) {
   for (let i = 0; i < words.length; i += size) {
     const content = words.slice(i, i + size).join(' ');
     chunks.push({
-      index:     chunks.length,
-      title:     `Chapter ${chunks.length + 1}`,
-      content:   content,
-      wordCount: Math.min(size, words.length - i),
+      index:          chunks.length,
+      title:          `Chapter ${chunks.length + 1}`,
+      content:        content,
+      wordCount:      Math.min(size, words.length - i),
       readingMinutes: Math.ceil(Math.min(size, words.length - i) / 250)
     });
   }
   return chunks;
+}
+
+// Find the index of the first real chapter in the body text
+// Skips title page, TOC, illustrations list, preface, etc.
+function findFirstRealChapter(body) {
+  // Markers that signal the actual story has begun
+  const startSignals = [
+    /\nCHAPTER\s+I[\.\s]/i,
+    /\nCHAPTER\s+1[\.\s]/i,
+    /\nCHAPTER\s+ONE\b/i,
+    /\nPART\s+I[\.\s]/i,
+    /\nPROLOGUE\b/i,
+    /\nPREFACE\b/i,
+    /\nINTRODUCTION\b/i,
+  ];
+
+  let earliest = -1;
+
+  for (const sig of startSignals) {
+    const m = body.match(sig);
+    if (m && (earliest === -1 || m.index < earliest)) {
+      earliest = m.index;
+    }
+  }
+
+  // If found, return position of that line
+  return earliest > 0 ? earliest : 0;
 }

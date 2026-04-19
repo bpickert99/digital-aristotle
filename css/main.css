@@ -504,6 +504,11 @@ html, body {
 /* ═══════════════════════════════════════════════════════
    PATH — MOBILE
 ═══════════════════════════════════════════════════════ */
+.path-outer {
+  padding: 8px 0 40px;
+  width: 100%;
+}
+
 .path-container {
   padding: 0 var(--pad) 40px;
   display: flex;

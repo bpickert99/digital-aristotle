@@ -63,19 +63,23 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
 
     <!-- Page content -->
     <div id="reader-page" style="
-      flex:1;display:flex;flex-direction:column;
-      padding:28px 24px 0;
-      max-width:680px;margin:0 auto;width:100%;
+      flex:1;
       overflow:hidden;
+      padding: 24px 32px 0;
+      max-width: 680px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
     ">
       <div id="reader-text" style="
         font-family:'Crimson Pro',Georgia,serif;
-        font-size:${fontSize}rem;line-height:1.9;
+        font-size:${fontSize}rem;
+        line-height:1.9;
         color:rgba(240,232,213,0.88);
         letter-spacing:0.01em;
-        flex:1;overflow-y:auto;
-        -webkit-overflow-scrolling:touch;
-        padding-bottom:16px;
+        flex:1;
+        overflow:hidden;
       "></div>
     </div>
 
@@ -162,9 +166,22 @@ export function renderReader(chapter, book, { onComplete, onBack }) {
   }
 
   function formatPage(text) {
-    return text.split(/\n\n+/).map(p =>
-      `<p style="margin-bottom:1.5em;">${p.trim()}</p>`
-    ).join('');
+    // Clean up the text - Gutenberg has lots of line breaks and odd spacing
+    const cleaned = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    // Split into paragraphs
+    const paras = cleaned.split(/\n\n+/).filter(p => p.trim().length > 10);
+
+    if (paras.length > 1) {
+      return paras.map(p =>
+        `<p style="margin-bottom:1.4em;text-indent:1.5em;">${p.replace(/\n/g,' ').trim()}</p>`
+      ).join('');
+    }
+    // Single block — just display it
+    return `<p style="line-height:1.9;">${cleaned.replace(/\n/g,' ')}</p>`;
   }
 
   // Touch/swipe support
