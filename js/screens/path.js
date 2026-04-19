@@ -46,7 +46,7 @@ const ICONS = {
 };
 
 // ═══════════════════════════════════════════════════════
-// COMPACT — three dots with text (home page default)
+// COMPACT — three dots (1 humanities + 1 STEM + 1 reading)
 // ═══════════════════════════════════════════════════════
 export function renderPath(nodes, onSelectNode) {
   const wrap = document.createElement('div');
@@ -60,10 +60,28 @@ export function renderPath(nodes, onSelectNode) {
     return wrap;
   }
 
-  // Find the current node and take it + next 2
-  const currentIdx  = nodes.findIndex(n => n.status === 'current');
-  const startIdx    = Math.max(0, currentIdx >= 0 ? currentIdx : 0);
-  const visibleNodes = nodes.slice(startIdx, startIdx + 3);
+  // Pick the three "today" nodes: next humanities, next STEM, next reading
+  const incomplete = nodes.filter(n => n.status !== 'completed');
+  const humanitiesTracks = ['humanities', 'arts', 'social'];
+  const stemTracks       = ['science', 'math'];
+
+  const nextHumanities = incomplete.find(n => n.type !== 'reading' && humanitiesTracks.includes(n.track));
+  const nextSTEM       = incomplete.find(n => n.type !== 'reading' && stemTracks.includes(n.track));
+  const nextReading    = incomplete.find(n => n.type === 'reading');
+
+  // Build visibleNodes in order, skip if missing
+  const visibleNodes = [nextHumanities, nextSTEM, nextReading].filter(Boolean);
+
+  // If we somehow didn't get three, fill in with next available nodes
+  if (visibleNodes.length < 3) {
+    const usedIds = new Set(visibleNodes.map(n => n.id));
+    for (const n of incomplete) {
+      if (!usedIds.has(n.id) && visibleNodes.length < 3) {
+        visibleNodes.push(n);
+        usedIds.add(n.id);
+      }
+    }
+  }
 
   // Compact list container
   const list = document.createElement('div');
@@ -76,52 +94,37 @@ export function renderPath(nodes, onSelectNode) {
     const bg        = TRACK_BG[track];
     const icon      = isReading ? ICONS.reading : (ICONS[track] || ICONS.humanities);
 
-    const isCurrent = node.status === 'current' || (i === 0 && node.status === 'unlocked');
-    const isLocked  = node.status === 'locked' || (i > 0 && node.status !== 'completed');
-
     const row = document.createElement('div');
     row.className = 'path-row';
 
     row.innerHTML = `
       <div class="path-dot-col">
-        <div class="path-dot ${isCurrent ? 'current' : 'pending'}"
+        <div class="path-dot active"
              style="
-               ${isCurrent ? `
-                 background: ${bg};
-                 border-color: ${color};
-                 color: ${color};
-                 box-shadow: 0 0 0 4px ${bg};
-               ` : `
-                 background: rgba(255,255,255,0.03);
-                 border-color: rgba(255,255,255,0.12);
-                 color: rgba(255,255,255,0.4);
-               `}
+               background: ${bg};
+               border-color: ${color};
+               color: ${color};
+               box-shadow: 0 0 0 4px ${bg};
              ">${icon}</div>
         ${i < visibleNodes.length - 1 ? `
-          <div class="path-line" style="background:${isCurrent ? color + '33' : 'rgba(255,255,255,0.08)'};"></div>
+          <div class="path-line" style="background:${color}33;"></div>
         ` : ''}
       </div>
-      <div class="path-text-col ${isCurrent ? 'current' : ''}">
-        <div class="path-row-label" style="color: ${isCurrent ? color : 'rgba(255,255,255,0.3)'};">
+      <div class="path-text-col active">
+        <div class="path-row-label" style="color: ${color};">
           ${isReading ? 'Reading' : (node.subject || 'Lesson')}
         </div>
-        <div class="path-row-title" style="color: ${isCurrent ? 'var(--text)' : 'var(--text-3)'};">
+        <div class="path-row-title">
           ${escapeHtml(node.title)}
         </div>
-        ${isCurrent ? `
-          <button class="path-start-btn" style="background:${color};color:#1a1610;">
-            ${isReading ? 'Read chapter →' : 'Start lesson →'}
-          </button>
-        ` : ''}
+        <button class="path-start-btn" style="background:${color};color:#1a1610;">
+          ${isReading ? 'Read chapter →' : 'Start lesson →'}
+        </button>
       </div>
     `;
 
-    if (isCurrent && !isLocked) {
-      // Make both the dot and the text clickable
-      row.querySelector('.path-dot')?.addEventListener('click', () => onSelectNode(node));
-      row.querySelector('.path-start-btn')?.addEventListener('click', () => onSelectNode(node));
-      row.style.cursor = 'pointer';
-    }
+    row.querySelector('.path-dot')?.addEventListener('click', () => onSelectNode(node));
+    row.querySelector('.path-start-btn')?.addEventListener('click', () => onSelectNode(node));
 
     list.appendChild(row);
   });
@@ -129,11 +132,11 @@ export function renderPath(nodes, onSelectNode) {
   wrap.appendChild(list);
 
   // Expandable full path section
-  const totalRemaining = nodes.filter(n => n.status !== 'completed').length;
-  if (totalRemaining > 3) {
+  const totalRemaining = incomplete.length;
+  if (totalRemaining > visibleNodes.length) {
     const expandBtn = document.createElement('button');
     expandBtn.className = 'path-expand-btn';
-    expandBtn.textContent = `See full path (${totalRemaining} lessons) ↓`;
+    expandBtn.textContent = `See full path (${totalRemaining} total) ↓`;
 
     const fullPath = document.createElement('div');
     fullPath.className = 'path-full hidden';
@@ -142,7 +145,7 @@ export function renderPath(nodes, onSelectNode) {
     expandBtn.addEventListener('click', () => {
       const isHidden = fullPath.classList.toggle('hidden');
       expandBtn.textContent = isHidden
-        ? `See full path (${totalRemaining} lessons) ↓`
+        ? `See full path (${totalRemaining} total) ↓`
         : `Hide full path ↑`;
     });
 

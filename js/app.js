@@ -289,6 +289,10 @@ async function showReader(homeScreen, node) {
   if (!chapter) return;
 
   if (ttsSynth) ttsSynth.cancel();
+
+  // Hide the bottom nav while in reader
+  document.querySelector('.bottom-nav')?.remove();
+
   homeScreen.classList.remove('active');
 
   renderReader(chapter, bookData, {
@@ -395,6 +399,10 @@ function showLesson(node, homeScreen) {
   if (!node.lesson) return;
 
   if (ttsSynth) ttsSynth.cancel();
+
+  // Hide the bottom nav while in lesson
+  document.querySelector('.bottom-nav')?.remove();
+
   homeScreen.classList.remove('active');
 
   const lessonScreen = renderLesson(node, userData, {
