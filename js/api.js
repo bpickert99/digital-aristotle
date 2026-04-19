@@ -146,3 +146,80 @@ Rules:
 
   return callWorker(prompt);
 }
+
+// ── Generate next path nodes ──────────────────────────
+// Called when user is within 2 nodes of the end of generated path
+export async function generatePathNodes(completedNodes, interests, struggles, count = 3) {
+  const recentSubjects  = completedNodes.slice(-4).map(n => n.subject).join(', ');
+  const struggleTopics  = Object.entries(struggles)
+    .filter(([, v]) => v.rate < 0.5)
+    .map(([k]) => k).join(', ');
+
+  const prompt = `Generate ${count} new lesson nodes for an adaptive learning path.
+
+Recent lessons covered: ${recentSubjects || 'none yet'}
+User interest ranking: ${interests?.join(', ') || 'general'}
+Struggling with: ${struggleTopics || 'nothing identified yet'}
+
+Rules:
+- Ensure discipline variety — do not repeat the same subject twice in a row
+- Every 4-5 nodes, include a STEM lesson (math, science, logic)
+- If user is struggling with something, include a reinforcement node
+- Each node should feel like a natural next step, not random
+- Occasionally surface something surprising that connects to recent topics
+
+Return JSON array only:
+[
+  {
+    "id": "unique-slug",
+    "title": "Lesson title (evocative, not descriptive)",
+    "subject": "e.g. History",
+    "track": "humanities|science|math|social|arts",
+    "sublabel": "One phrase describing the lesson angle",
+    "lesson": {
+      "id": "slug",
+      "title": "string",
+      "estimatedMinutes": 25,
+      "hook": "2 sentences",
+      "sections": [
+        {"title": "4 words", "content": "2 paragraphs"},
+        {"title": "4 words", "content": "2 paragraphs"},
+        {"title": "4 words", "content": "2 paragraphs"}
+      ],
+      "pullQuote": "one sentence",
+      "checkpointPrompt": "one question",
+      "questions": [
+        {"id":"q1","type":"comprehension","question":"string","format":"multiple-choice","options":["A","B","C","D"],"correctIndex":0,"answer":"string","explanation":"string"},
+        {"id":"q2","type":"analysis","question":"string","format":"short-answer","options":null,"correctIndex":null,"answer":"string","explanation":"string"},
+        {"id":"q3","type":"connection","question":"string","format":"short-answer","options":null,"correctIndex":null,"answer":"string","explanation":"string"},
+        {"id":"q4","type":"prose","question":"string","format":"short-answer","options":null,"correctIndex":null,"answer":"string","explanation":"string"}
+      ]
+    }
+  }
+]`;
+
+  return callWorker(prompt);
+}
+
+// ── Generate entrance quiz for a topic ────────────────
+export async function generateEntranceQuiz(topic, track) {
+  const prompt = `Generate a 5-question entrance quiz to assess prior knowledge of: ${topic} (${track})
+
+Questions should reveal understanding, not just recall.
+Include an "I don't know" option conceptually — use open-ended questions where possible.
+
+Return JSON array only:
+[
+  {
+    "id": "eq1",
+    "question": "string (open-ended, assesses genuine understanding)",
+    "format": "multiple-choice|short-answer",
+    "options": ["A","B","C","D"] or null,
+    "correctIndex": number or null,
+    "answer": "string",
+    "explanation": "string (brief)"
+  }
+]`;
+
+  return callWorker(prompt);
+}

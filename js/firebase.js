@@ -244,3 +244,77 @@ export async function recordLessonDone(uid) {
   await updateUser(uid, { lastLessonDate: todayStr });
   return checkAndUpdateStreak(uid);
 }
+
+// ── Path functions ────────────────────────────────────
+export async function savePath(uid, nodes) {
+  await setDoc(doc(db, 'users', uid, 'curriculum', 'path'), {
+    nodes,
+    updatedAt: serverTimestamp()
+  });
+}
+
+export async function getPath(uid) {
+  const snap = await getDoc(doc(db, 'users', uid, 'curriculum', 'path'));
+  return snap.exists() ? snap.data().nodes : null;
+}
+
+export async function markNodeComplete(uid, nodeId, nodes) {
+  const updated = nodes.map((n, i) => {
+    if (n.id === nodeId) return { ...n, status: 'completed' };
+    // Unlock the next locked node
+    const nodeIdx = nodes.findIndex(x => x.id === nodeId);
+    if (i === nodeIdx + 1 && n.status === 'locked') return { ...n, status: 'current' };
+    return n;
+  });
+  await savePath(uid, updated);
+  return updated;
+}
+
+// ── Vocab deck ────────────────────────────────────────
+export async function getVocabDeck(uid) {
+  const snap = await getDoc(doc(db, 'users', uid, 'curriculum', 'vocabDeck'));
+  return snap.exists() ? (snap.data().cards || []) : [];
+}
+
+export async function saveVocabDeck(uid, cards) {
+  await setDoc(doc(db, 'users', uid, 'curriculum', 'vocabDeck'), {
+    cards,
+    updatedAt: serverTimestamp()
+  });
+}
+
+// ── Spaced repetition deck (concepts) ─────────────────
+export async function getReviewDeck(uid) {
+  const snap = await getDoc(doc(db, 'users', uid, 'curriculum', 'reviewDeck'));
+  return snap.exists() ? (snap.data().cards || []) : [];
+}
+
+export async function saveReviewDeck(uid, cards) {
+  await setDoc(doc(db, 'users', uid, 'curriculum', 'reviewDeck'), {
+    cards,
+    updatedAt: serverTimestamp()
+  });
+}
+
+// ── Struggle tracking ─────────────────────────────────
+export async function recordStruggle(uid, conceptType, wasCorrect) {
+  const ref  = doc(db, 'users', uid, 'curriculum', 'struggles');
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  const key  = conceptType;
+
+  const current = data[key] || { attempts: 0, correct: 0 };
+  await setDoc(ref, {
+    ...data,
+    [key]: {
+      attempts: current.attempts + 1,
+      correct:  current.correct + (wasCorrect ? 1 : 0),
+      rate:     (current.correct + (wasCorrect ? 1 : 0)) / (current.attempts + 1)
+    }
+  });
+}
+
+export async function getStruggles(uid) {
+  const snap = await getDoc(doc(db, 'users', uid, 'curriculum', 'struggles'));
+  return snap.exists() ? snap.data() : {};
+}
