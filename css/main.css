@@ -1000,32 +1000,27 @@ html, body {
     flex: 1;
     height: 100vh;
     overflow-y: auto;
+    overflow-x: hidden;
   }
+  .screen::-webkit-scrollbar { width: 8px; }
+  .screen::-webkit-scrollbar-track { background: transparent; }
+  .screen::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+  }
+  .screen::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
 
-  /* Home — two columns inside main area */
+  /* Home — single centered column on desktop */
   .home-screen {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    grid-template-rows: auto;
-    align-items: start;
-    padding: 40px 48px 40px 48px;
-    gap: 0;
-    max-width: 980px;
+    padding: 40px 48px 80px;
+    max-width: 720px;
+    margin: 0 auto;
   }
 
-  .home-header    { display: none; } /* wordmark moved to sidebar */
-  .xp-bar-container { grid-column: 1 / -1; padding: 0 0 28px; }
-  .daily-checks   { padding: 0; grid-column: 1 / -1; margin-bottom: 28px; }
-  .home-section-header { padding: 0 0 16px; grid-column: 1; }
-
-  /* Path takes left column on desktop */
-  .path-outer { grid-column: 1; padding-right: 32px; }
-
-  /* Book card takes right column */
-  .book-outer { grid-column: 2; position: sticky; top: 0; }
-
-  .book-card { margin: 0 0 16px; border-radius: var(--radius-lg); }
-
+  .home-header    { display: none; }
+  .xp-bar-container { padding: 0 0 24px; }
+  .home-section-header { padding: 0 0 24px; }
+  .path-outer { padding: 8px 0 40px; }
   .path-node { max-width: none; }
 
   /* Lesson — centered single column with proper measure */

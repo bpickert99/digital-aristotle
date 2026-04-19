@@ -119,36 +119,11 @@ function showOnboarding() {
       await saveOnboarding(uid, profile);
       if (profile.vocabLevel) await saveVocabLevel(uid, profile.vocabLevel);
 
-      // Generate initial path (6 nodes)
+      // Generate initial units
       const curriculum = await generateCurriculum(profile);
       if (!curriculum?.units?.length) throw new Error('No units returned');
 
-      // Convert units to path nodes
-      const initialNodes = curriculum.units.flatMap((unit, ui) => [
-        {
-          id:       unit.id,
-          title:    unit.title,
-          subject:  unit.subject,
-          track:    unit.track,
-          sublabel: unit.description?.split('.')[0] || '',
-          status:   ui === 0 ? 'current' : 'locked',
-          lesson:   unit.lesson
-        }
-      ]);
-
-      // Generate 4 more nodes beyond the first two
-      let extraNodes = [];
-      try {
-        const extras = await generatePathNodes(initialNodes, profile.interests || [], {}, 4);
-        if (Array.isArray(extras)) {
-          extraNodes = extras.map((n, i) => ({ ...n, status: 'locked' }));
-        }
-      } catch (e) { console.warn('Extra node generation failed:', e.message); }
-
-      pathNodes = [...initialNodes, ...extraNodes];
-      await savePath(uid, pathNodes);
-
-      // Select and fetch book
+      // Select and fetch book first (so we can interleave with lessons)
       const vocabLevel = profile.vocabLevel?.level || 3;
       const book = selectBook(vocabLevel, profile.interests || []);
       try {
@@ -164,6 +139,36 @@ function showOnboarding() {
         };
         await saveBook(uid, bookData);
       } catch (e) { console.warn('Book fetch failed:', e.message); }
+
+      // Convert units to lesson nodes
+      const lessonNodes = curriculum.units.map((unit, ui) => ({
+        id:       unit.id,
+        type:     'lesson',
+        title:    unit.title,
+        subject:  unit.subject,
+        track:    unit.track,
+        status:   'locked',
+        lesson:   unit.lesson
+      }));
+
+      // Generate extras
+      let extraLessonNodes = [];
+      try {
+        const extras = await generatePathNodes(lessonNodes, profile.interests || [], {}, 4);
+        if (Array.isArray(extras)) {
+          extraLessonNodes = extras.map(n => ({ ...n, type: 'lesson', status: 'locked' }));
+        }
+      } catch (e) { console.warn('Extra generation failed:', e.message); }
+
+      const allLessons = [...lessonNodes, ...extraLessonNodes];
+
+      // Interleave book chapters: after every 2 lessons, add a reading node
+      pathNodes = interleaveBookChapters(allLessons, bookData);
+
+      // First node is current
+      if (pathNodes[0]) pathNodes[0].status = 'current';
+
+      await savePath(uid, pathNodes);
 
       await markOnboarded(uid);
       userData = await getUser(uid);
@@ -216,12 +221,47 @@ async function loadAndShowHome() {
   }
 
   const homeScreen = renderHome(userData, pathNodes, bookData, {
-    onSelectNode: (node) => showLesson(node, homeScreen),
-    onOpenBook:   ()     => showReader(homeScreen)
+    onSelectNode: (node) => {
+      if (node.type === 'reading') {
+        showReader(homeScreen, node);
+      } else {
+        showLesson(node, homeScreen);
+      }
+    }
   });
 
   showScreen(homeScreen);
   addBottomNav(homeScreen);
+}
+
+// Helper: insert book chapter nodes into the lesson sequence
+function interleaveBookChapters(lessonNodes, bookData) {
+  if (!bookData?.chapters?.length) return lessonNodes;
+
+  const result = [];
+  let chapterIdx = 0;
+  const maxChapters = bookData.chapters.length;
+
+  for (let i = 0; i < lessonNodes.length; i++) {
+    result.push(lessonNodes[i]);
+
+    // After every 2 lessons, insert a book chapter (if available)
+    if ((i + 1) % 2 === 0 && chapterIdx < maxChapters) {
+      const ch = bookData.chapters[chapterIdx];
+      result.push({
+        id:            `reading-${bookData.gutenbergId}-${chapterIdx}`,
+        type:          'reading',
+        title:         ch.title || `Chapter ${chapterIdx + 1}`,
+        subject:       bookData.title,
+        track:         'reading',
+        status:        'locked',
+        bookId:        bookData.gutenbergId,
+        chapterIndex:  chapterIdx
+      });
+      chapterIdx++;
+    }
+  }
+  return result;
 }
 
 async function extendPathInBackground(uid) {
@@ -240,10 +280,11 @@ async function extendPathInBackground(uid) {
 }
 
 // ── Reader ────────────────────────────────────────────
-async function showReader(homeScreen) {
+async function showReader(homeScreen, node) {
   if (!bookData?.chapters?.length) return;
 
-  const chapterIdx = bookData.currentChapter || 0;
+  // Use the node's chapter index if provided (it's a path node)
+  const chapterIdx = node?.chapterIndex ?? (bookData.currentChapter || 0);
   const chapter    = bookData.chapters[chapterIdx];
   if (!chapter) return;
 
@@ -257,6 +298,7 @@ async function showReader(homeScreen) {
       const todayStr = new Date().toDateString();
       const nextIdx  = chapterIdx + 1;
 
+      // Advance book's currentChapter
       await updateBookProgress(
         uid,
         nextIdx < bookData.chapters.length ? nextIdx : chapterIdx,
@@ -265,24 +307,21 @@ async function showReader(homeScreen) {
       bookData.currentChapter = nextIdx < bookData.chapters.length ? nextIdx : chapterIdx;
       bookData.lastReadDate   = todayStr;
 
+      // Mark this reading node complete in the path (if it was one)
+      if (node?.id) {
+        pathNodes = await markNodeComplete(uid, node.id, pathNodes);
+      }
+
       await awardXp(uid, 80);
       await recordBookRead(uid);
+      await recordLessonDone(uid); // reading also counts toward daily completion
       userData = await getUser(uid);
-
-      // Add chapter to vocab deck if it's a literature book
-      try {
-        const newCards = await generateVocabCards(chapter, bookData, uid);
-        if (newCards.length) {
-          const deck = await getVocabDeck(uid);
-          await saveVocabDeck(uid, [...deck, ...newCards]);
-        }
-      } catch {}
 
       // Reflection questions
       let rqs = [];
       try { rqs = await generateReflectionQuestions(chapter, bookData); } catch {}
 
-      if (rqs.length > 0) {
+      if (Array.isArray(rqs) && rqs.length > 0) {
         showReflection(rqs, chapter, homeScreen);
       } else {
         homeScreen.classList.add('active');

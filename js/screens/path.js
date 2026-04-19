@@ -1,4 +1,5 @@
-// Duolingo-style path — alternating left/right circular nodes
+// Duolingo-style path with subject icons
+// Supports both 'lesson' and 'reading' node types
 
 const TRACK_COLORS = {
   humanities: '#c4a44a',
@@ -6,6 +7,7 @@ const TRACK_COLORS = {
   math:       '#8b7acc',
   social:     '#6aab8a',
   arts:       '#c47a8a',
+  reading:    '#a8804f',
 };
 
 const TRACK_BG = {
@@ -14,6 +16,35 @@ const TRACK_BG = {
   math:       'rgba(139,122,204,0.15)',
   social:     'rgba(106,171,138,0.15)',
   arts:       'rgba(196,122,138,0.15)',
+  reading:    'rgba(168,128,79,0.18)',
+};
+
+// Subject SVG icons — stroke-based for clean look
+const ICONS = {
+  humanities: `<svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+    <path d="M4 5v14a1 1 0 001 1h5V4H5a1 1 0 00-1 1zM14 4v16h5a1 1 0 001-1V5a1 1 0 00-1-1h-5zM10 4v16" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+  </svg>`,
+  science: `<svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+    <path d="M9 3v6.5L4 19a1.5 1.5 0 001.3 2.25h13.4A1.5 1.5 0 0020 19l-5-9.5V3M8 3h8M7 14h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`,
+  math: `<svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+    <path d="M4 5h10l-6 8 6 8H4M16 10l4 4M20 10l-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`,
+  social: `<svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+    <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.6"/>
+    <circle cx="17" cy="10" r="2.5" stroke="currentColor" stroke-width="1.6"/>
+    <path d="M3 18c0-2.8 2.7-5 6-5s6 2.2 6 5M14 17c.3-2 2.3-3.5 4.5-3.5S22 15 22 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`,
+  arts: `<svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+    <path d="M12 3c-5 0-9 3.6-9 8 0 3.3 2.5 5 5 5h1.5a1.5 1.5 0 011.5 1.5v1a1.5 1.5 0 001.5 1.5c4.7 0 8.5-3.6 8.5-8s-4-9-9-9z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="8" cy="10" r="1.2" fill="currentColor"/>
+    <circle cx="12" cy="7" r="1.2" fill="currentColor"/>
+    <circle cx="16" cy="10" r="1.2" fill="currentColor"/>
+  </svg>`,
+  reading: `<svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+    <path d="M3 5.5A1.5 1.5 0 014.5 4H11v15H4.5A1.5 1.5 0 013 17.5v-12zM21 5.5A1.5 1.5 0 0019.5 4H13v15h6.5a1.5 1.5 0 001.5-1.5v-12z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M6 8h3M6 11h3M15 8h3M15 11h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+  </svg>`,
 };
 
 export function renderPath(nodes, onSelectNode) {
@@ -21,175 +52,144 @@ export function renderPath(nodes, onSelectNode) {
   wrap.className = 'path-outer';
 
   if (!nodes || nodes.length === 0) {
-    wrap.innerHTML = `<div style="padding:24px 0;color:var(--text-3);font-family:var(--font-ui);
-                                   font-size:0.85rem;text-align:center;">
-      Curriculum is loading…
+    wrap.innerHTML = `<div style="padding:40px 24px;color:var(--text-3);
+                                   font-family:var(--font-ui);font-size:0.85rem;text-align:center;">
+      Your curriculum is being prepared…
     </div>`;
     return wrap;
   }
 
-  // Zigzag positions: alternate nodes left/center/right
-  const positions = ['left', 'center', 'right', 'center'];
+  // Zigzag: left, center, right, center pattern
+  const positions = ['center', 'right', 'center', 'left'];
 
   nodes.forEach((node, i) => {
-    const pos      = positions[i % positions.length];
-    const color    = TRACK_COLORS[node.track] || TRACK_COLORS.humanities;
-    const bg       = TRACK_BG[node.track] || TRACK_BG.humanities;
-    const isDone   = node.status === 'completed';
-    const isCurrent = node.status === 'current';
-    const isLocked = node.status === 'locked';
+    const isReading = node.type === 'reading';
+    const track     = isReading ? 'reading' : (node.track || 'humanities');
+    const color     = TRACK_COLORS[track];
+    const bg        = TRACK_BG[track];
+    const icon      = isReading ? ICONS.reading : (ICONS[track] || ICONS.humanities);
 
-    // Connector between nodes
+    const isDone    = node.status === 'completed';
+    const isCurrent = node.status === 'current';
+    const isLocked  = node.status === 'locked';
+    const pos       = positions[i % positions.length];
+
+    // Connector line to previous node
     if (i > 0) {
       const connector = document.createElement('div');
-      const prevPos   = positions[(i - 1) % positions.length];
-      // Slight diagonal for zigzag feel
+      const prevNode  = nodes[i - 1];
+      const connColor = (prevNode.status === 'completed' && (isDone || isCurrent))
+        ? color : 'rgba(255,255,255,0.08)';
+
       connector.style.cssText = `
         width: 2px;
-        height: 28px;
-        background: ${isDone ? color : 'rgba(255,255,255,0.08)'};
+        height: 32px;
+        background: ${connColor};
         margin: 0 auto;
-        opacity: ${isDone ? 0.5 : 1};
-        position: relative;
-        left: ${pos === 'left' ? '-40px' : pos === 'right' ? '40px' : '0'};
+        opacity: ${isDone ? 0.6 : isCurrent ? 0.8 : 1};
         transition: background 0.3s;
       `;
       wrap.appendChild(connector);
     }
 
-    // Node row
+    // Row positioning
     const row = document.createElement('div');
     row.style.cssText = `
       display: flex;
       align-items: center;
-      justify-content: ${pos === 'left' ? 'flex-start' : pos === 'right' ? 'flex-end' : 'center'};
-      padding: 0 32px;
-      position: relative;
+      padding: 0 16px;
+      ${pos === 'left'   ? 'justify-content: flex-start; padding-left: 24px;'
+      : pos === 'right'  ? 'justify-content: flex-end; padding-right: 24px;'
+      : 'justify-content: center;'}
     `;
 
-    // The circle node
+    // Node wrapper (circle + label)
+    const nodeWrap = document.createElement('div');
+    nodeWrap.style.cssText = `
+      display: flex; flex-direction: column; align-items: center;
+      position: relative;
+      ${isCurrent ? 'margin-bottom: 28px;' : ''}
+    `;
+
+    // The circle
     const circle = document.createElement('div');
     circle.style.cssText = `
-      width: 72px;
-      height: 72px;
+      width: 76px; height: 76px;
       border-radius: 50%;
-      background: ${isDone ? color : isCurrent ? bg : 'var(--bg-3)'};
-      border: 2.5px solid ${isDone || isCurrent ? color : 'rgba(255,255,255,0.1)'};
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      background: ${isDone ? color : isCurrent ? bg : 'rgba(255,255,255,0.04)'};
+      border: 3px solid ${isDone || isCurrent ? color : 'rgba(255,255,255,0.08)'};
+      display: flex; align-items: center; justify-content: center;
       cursor: ${isLocked ? 'default' : 'pointer'};
-      transition: transform 0.15s, box-shadow 0.15s;
-      position: relative;
-      box-shadow: ${isCurrent ? `0 0 0 6px ${bg}, 0 0 0 8px ${color}22` : 'none'};
-      opacity: ${isLocked ? 0.35 : 1};
+      transition: transform 0.18s, box-shadow 0.18s;
+      box-shadow: ${isCurrent ? `0 0 0 6px ${bg}, 0 0 24px ${color}40` : 'none'};
+      opacity: ${isLocked ? 0.3 : 1};
       -webkit-tap-highlight-color: transparent;
+      color: ${isDone ? '#1a1610' : isCurrent ? color : 'rgba(255,255,255,0.3)'};
+      flex-shrink: 0;
     `;
 
-    // Icon inside circle
-    const icon = document.createElement('div');
-    icon.style.cssText = `
-      font-size: ${isDone ? '1.4rem' : '1.2rem'};
-      margin-bottom: 2px;
-      color: ${isDone ? '#1a1610' : isCurrent ? color : 'rgba(255,255,255,0.4)'};
-    `;
-    icon.textContent = isDone ? '✓' : getTrackIcon(node.track);
+    if (isDone) {
+      circle.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="30" height="30">
+        <path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+    } else {
+      circle.innerHTML = icon;
+    }
 
-    circle.appendChild(icon);
-
-    // Label below circle
+    // Label
     const label = document.createElement('div');
     label.style.cssText = `
-      margin-top: 8px;
-      text-align: center;
-      max-width: 100px;
+      margin-top: 10px; text-align: center; max-width: 140px;
     `;
     label.innerHTML = `
       <div style="font-family:var(--font-ui);font-size:0.62rem;font-weight:500;
-                  letter-spacing:0.07em;text-transform:uppercase;
-                  color:${isLocked ? 'rgba(255,255,255,0.2)' : color};margin-bottom:2px;">
-        ${node.subject || 'Lesson'}
+                  letter-spacing:0.08em;text-transform:uppercase;
+                  color:${isLocked ? 'rgba(255,255,255,0.2)' : color};
+                  margin-bottom:3px;">
+        ${isReading ? 'Reading' : (node.subject || 'Lesson')}
       </div>
-      <div style="font-family:var(--font-body);font-size:0.82rem;font-weight:400;
-                  color:${isLocked ? 'rgba(255,255,255,0.2)' : isCurrent ? 'var(--text)' : 'var(--text-2)'};
-                  line-height:1.3;">
-        ${truncate(node.title, 28)}
+      <div style="font-family:var(--font-body);font-size:0.88rem;font-weight:400;
+                  color:${isLocked ? 'rgba(255,255,255,0.25)' : isCurrent ? 'var(--text)' : 'var(--text-2)'};
+                  line-height:1.35;">
+        ${truncate(node.title, 42)}
       </div>
     `;
 
-    // Tap handler
     if (!isLocked) {
       circle.addEventListener('click', () => onSelectNode(node));
-      circle.addEventListener('mouseenter', () => {
-        if (!isLocked) circle.style.transform = 'scale(1.08)';
-      });
-      circle.addEventListener('mouseleave', () => {
-        circle.style.transform = 'none';
-      });
+      circle.addEventListener('mouseenter', () => { circle.style.transform = 'scale(1.06)'; });
+      circle.addEventListener('mouseleave', () => { circle.style.transform = 'none'; });
     }
 
-    // Current node tooltip
     if (isCurrent) {
       const tooltip = document.createElement('div');
       tooltip.style.cssText = `
         position: absolute;
-        bottom: -36px;
-        left: 50%;
+        top: -14px; left: 50%;
         transform: translateX(-50%);
         background: ${color};
         color: #1a1610;
         font-family: var(--font-ui);
-        font-size: 0.65rem;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        padding: 4px 10px;
-        border-radius: 10px;
-        white-space: nowrap;
-        pointer-events: none;
+        font-size: 0.62rem; font-weight: 700;
+        letter-spacing: 0.1em; text-transform: uppercase;
+        padding: 4px 10px; border-radius: 10px;
+        white-space: nowrap; pointer-events: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       `;
-      tooltip.textContent = 'Start →';
-      circle.style.position = 'relative';
-      circle.appendChild(tooltip);
+      tooltip.textContent = 'Start';
+      nodeWrap.appendChild(tooltip);
     }
 
-    // Node container
-    const nodeWrap = document.createElement('div');
-    nodeWrap.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      ${isCurrent ? 'margin-bottom: 20px;' : ''}
-    `;
     nodeWrap.appendChild(circle);
     nodeWrap.appendChild(label);
     row.appendChild(nodeWrap);
     wrap.appendChild(row);
-
-    // Extra space after current node for tooltip
-    if (isCurrent) {
-      const spacer = document.createElement('div');
-      spacer.style.height = '12px';
-      wrap.appendChild(spacer);
-    }
   });
 
   return wrap;
 }
 
-function getTrackIcon(track) {
-  const icons = {
-    humanities: '◎',
-    science:    '⚗',
-    math:       '∑',
-    social:     '◑',
-    arts:       '♩',
-  };
-  return icons[track] || '◎';
-}
-
 function truncate(str, len) {
   if (!str) return '';
-  return str.length > len ? str.slice(0, len) + '…' : str;
+  return str.length > len ? str.slice(0, len).trim() + '…' : str;
 }
